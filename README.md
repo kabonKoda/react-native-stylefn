@@ -267,19 +267,41 @@ function SettingsScreen() {
 </StyleProvider>
 ```
 
-### Theme Configuration
+---
 
-Optional config — pass it to `StyleProvider`:
+### Using `rn-stylefn.config.js`
+
+Create a config file at the root of your project:
 
 ```js
 // rn-stylefn.config.js
 module.exports = {
+  darkMode: 'system', // 'system' | 'manual'
+
   theme: {
-    spacing: { 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, 12: 48 },
-    fontSize: { xs: 10, sm: 12, base: 14, lg: 16, xl: 20, '2xl': 24, '3xl': 30 },
-    borderRadius: { none: 0, sm: 4, md: 8, lg: 12, xl: 16, '2xl': 24, full: 9999 },
-    fontWeight: { normal: '400', medium: '500', semibold: '600', bold: '700' },
+    // Override built-in spacing scale
+    spacing: {
+      0: 0, 1: 4, 2: 8, 3: 12, 4: 16,
+      5: 20, 6: 24, 8: 32, 10: 40, 12: 48,
+    },
+    // Override font sizes
+    fontSize: {
+      xs: 10, sm: 12, base: 14, lg: 16,
+      xl: 20, '2xl': 24, '3xl': 30,
+    },
+    // Override border radii
+    borderRadius: {
+      none: 0, sm: 4, md: 8, lg: 12,
+      xl: 16, '2xl': 24, full: 9999,
+    },
+    // Override font weights
+    fontWeight: {
+      normal: '400', medium: '500', semibold: '600', bold: '700',
+    },
+    // Override breakpoints (screen widths in dp)
     screens: { sm: 0, md: 375, lg: 430, xl: 768 },
+
+    // Add your brand colors (available via t.theme.colors.*)
     colors: {
       primary: '#3b82f6',
       secondary: '#8b5cf6',
@@ -287,38 +309,136 @@ module.exports = {
       success: '#22c55e',
       warning: '#f59e0b',
     },
+
+    // extend: merges on top of the built-in theme without replacing
     extend: {
-      colors: { brand: '#ff6600' },
+      colors: { brand: '#ff6600', 'brand-dark': '#cc5200' },
+      spacing: { 13: 52, 14: 56 },
     },
   },
-  darkMode: 'system', // 'system' | 'manual'
 };
 ```
 
-### CSS Variables
+**Import it and pass to `StyleProvider`:**
 
-Optional CSS file for light/dark color variables:
+```tsx
+// app/_layout.tsx (or App.tsx)
+import { StyleProvider } from 'react-native-stylefn';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import config from '../rn-stylefn.config';
 
-```css
-:root {
-  --color-background:  #ffffff;
-  --color-surface:     #f5f5f5;
-  --color-text:        #111827;
-}
-.dark {
-  --color-background:  #0f172a;
-  --color-surface:     #1e293b;
-  --color-text:        #f8fafc;
+export default function RootLayout() {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <StyleProvider config={config} insets={insets}>
+      {/* your app */}
+    </StyleProvider>
+  );
 }
 ```
 
-```tsx
-import { parseCSSVariables } from 'react-native-stylefn';
-import cssContent from './global.css';
+Now your custom tokens are available in every style function:
 
-<StyleProvider cssVars={parseCSSVariables(cssContent)}>
-  <App />
-</StyleProvider>
+```tsx
+<Text style={(t) => ({
+  color: t.theme.colors.brand,        // '#ff6600'
+  fontSize: t.theme.fontSize['3xl'],  // 30
+  padding: t.theme.spacing[8],        // 32
+})} />
+```
+
+---
+
+### Using `global.css`
+
+Create a `global.css` in your project root to define your **light/dark color palette**. These map to `t.colors.*` tokens:
+
+```css
+/* global.css */
+
+:root {
+  /* Light mode colors */
+  --color-background:   #ffffff;
+  --color-surface:      #f8fafc;
+  --color-border:       #e2e8f0;
+  --color-text:         #0f172a;
+  --color-text-muted:   #64748b;
+  --color-primary:      #3b82f6;
+  --color-secondary:    #8b5cf6;
+}
+
+.dark {
+  /* Dark mode colors */
+  --color-background:   #0f172a;
+  --color-surface:      #1e293b;
+  --color-border:       #334155;
+  --color-text:         #f1f5f9;
+  --color-text-muted:   #94a3b8;
+  --color-primary:      #60a5fa;
+  --color-secondary:    #a78bfa;
+}
+```
+
+> **Variable naming**: Use `--color-<name>` format. The `--color-` prefix is stripped so `--color-text` becomes `t.colors.text`, `--color-text-muted` becomes `t.colors['text-muted']`.
+
+**Import and parse it, pass to `StyleProvider`:**
+
+```tsx
+// app/_layout.tsx (or App.tsx)
+import { StyleProvider, parseCSSVariables } from 'react-native-stylefn';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// In React Native/Metro, import the raw CSS string
+// Add "*.css" to your metro.config.js sourceExts if needed
+import cssRaw from '../global.css';
+
+// Pre-parse once (not inside the component)
+const cssVars = parseCSSVariables(cssRaw);
+
+export default function RootLayout() {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <StyleProvider cssVars={cssVars} insets={insets}>
+      {/* your app */}
+    </StyleProvider>
+  );
+}
+```
+
+Now use the colors in style functions:
+
+```tsx
+<View style={(t) => ({
+  backgroundColor: t.colors.background,   // switches with dark mode
+  borderColor: t.colors.border,
+})} />
+
+<Text style={(t) => ({
+  color: t.colors.text,
+  fontSize: t.theme.fontSize.base,
+})} />
+```
+
+**Using both config and CSS variables together:**
+
+```tsx
+import config from '../rn-stylefn.config';
+import cssRaw from '../global.css';
+import { parseCSSVariables, StyleProvider } from 'react-native-stylefn';
+
+const cssVars = parseCSSVariables(cssRaw);
+
+export default function RootLayout() {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <StyleProvider config={config} cssVars={cssVars} insets={insets}>
+      {children}
+    </StyleProvider>
+  );
+}
 ```
 
 ## How It Works
