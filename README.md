@@ -41,7 +41,21 @@ module.exports = {
 };
 ```
 
-### 2. Wrap your app with `StyleProvider`
+### 2. Add the Metro config wrapper
+
+```js
+// metro.config.js
+const { getDefaultConfig } = require('expo/metro-config');
+const { withStyleFn } = require('react-native-stylefn/metro-config');
+
+const config = getDefaultConfig(__dirname);
+
+module.exports = withStyleFn(config, {
+  input: './global.css',  // your CSS variables file (optional)
+});
+```
+
+### 3. Wrap your app with `StyleProvider`
 
 ```tsx
 import { StyleProvider } from 'react-native-stylefn';
@@ -50,15 +64,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function App() {
   const insets = useSafeAreaInsets();
 
+  // rn-stylefn.config.js and global.css are auto-loaded — no imports needed
   return (
-    <StyleProvider config={{ darkMode: 'system' }} insets={insets}>
+    <StyleProvider insets={insets}>
       <RootNavigator />
     </StyleProvider>
   );
 }
 ```
 
-### 3. Write style functions
+### 4. Write style functions
 
 ```tsx
 import { View, Text, ScrollView } from 'react-native';
@@ -86,7 +101,7 @@ import { View, Text, ScrollView } from 'react-native';
 />
 ```
 
-### 4. Mix functions and objects in arrays
+### 5. Mix functions and objects in arrays
 
 ```tsx
 <View style={[
@@ -96,7 +111,7 @@ import { View, Text, ScrollView } from 'react-native';
 ]} />
 ```
 
-### 5. Use with `StyleSheet.create`
+### 6. Use with `StyleSheet.create`
 
 ```tsx
 import { StyleSheet, View, Text } from 'react-native';
@@ -121,7 +136,7 @@ const styles = StyleSheet.create({
 </View>
 ```
 
-### 6. Use with Reanimated
+### 7. Use with Reanimated
 
 ```tsx
 import Animated, { useAnimatedStyle, withSpring, useSharedValue } from 'react-native-reanimated';
@@ -150,7 +165,7 @@ function AnimatedCard() {
 }
 ```
 
-### 7. Build custom components with style functions
+### 8. Build custom components with style functions
 
 ```tsx
 import { useTheme } from 'react-native-stylefn';
@@ -319,23 +334,12 @@ module.exports = {
 };
 ```
 
-**Import it and pass to `StyleProvider`:**
+> **Auto-loaded:** `StyleProvider` automatically `require`s `rn-stylefn.config.js` from your project root — no manual import or prop needed. Just create the file and your tokens are available everywhere.
+
+If you need to pass config **programmatically** (e.g. from a remote source), you can still use the `config` prop:
 
 ```tsx
-// app/_layout.tsx (or App.tsx)
-import { StyleProvider } from 'react-native-stylefn';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import config from '../rn-stylefn.config';
-
-export default function RootLayout() {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <StyleProvider config={config} insets={insets}>
-      {/* your app */}
-    </StyleProvider>
-  );
-}
+<StyleProvider config={myDynamicConfig} insets={insets}>
 ```
 
 Now your custom tokens are available in every style function:
@@ -382,23 +386,18 @@ Create a `global.css` in your project root to define your **light/dark color pal
 
 > **Variable naming**: Use `--color-<name>` format. The `--color-` prefix is stripped so `--color-text` becomes `t.colors.text`, `--color-text-muted` becomes `t.colors['text-muted']`.
 
-**Import and parse it, pass to `StyleProvider`:**
+> **Auto-loaded:** When you set `input: './global.css'` in `withStyleFn()` (step 2 of Quick Start), Metro processes the CSS at build time and `StyleProvider` loads it automatically as a virtual module — no manual import or prop needed.
+
+If you need to pass CSS variables **programmatically** (e.g. without Metro or from a dynamic source), you can still use the `cssVars` prop with `parseCSSVariables`:
 
 ```tsx
-// app/_layout.tsx (or App.tsx)
 import { StyleProvider, parseCSSVariables } from 'react-native-stylefn';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import cssRaw from '../global.css'; // requires "*.css" in metro sourceExts
 
-// In React Native/Metro, import the raw CSS string
-// Add "*.css" to your metro.config.js sourceExts if needed
-import cssRaw from '../global.css';
-
-// Pre-parse once (not inside the component)
-const cssVars = parseCSSVariables(cssRaw);
+const cssVars = parseCSSVariables(cssRaw); // pre-parse once, outside component
 
 export default function RootLayout() {
   const insets = useSafeAreaInsets();
-
   return (
     <StyleProvider cssVars={cssVars} insets={insets}>
       {/* your app */}
@@ -423,23 +422,13 @@ Now use the colors in style functions:
 
 **Using both config and CSS variables together:**
 
-```tsx
-import config from '../rn-stylefn.config';
-import cssRaw from '../global.css';
-import { parseCSSVariables, StyleProvider } from 'react-native-stylefn';
+Both are **auto-loaded** — no manual imports or props required. Just:
 
-const cssVars = parseCSSVariables(cssRaw);
+1. Create `rn-stylefn.config.js` at your project root
+2. Set `input: './global.css'` in `withStyleFn()` in `metro.config.js`
+3. Wrap your app with `<StyleProvider insets={insets}>`
 
-export default function RootLayout() {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <StyleProvider config={config} cssVars={cssVars} insets={insets}>
-      {children}
-    </StyleProvider>
-  );
-}
-```
+`StyleProvider` automatically picks up both at runtime. Your theme tokens and CSS color variables are all available in every style function.
 
 ## How It Works
 
@@ -447,7 +436,7 @@ The library uses a **compile-time Babel transform** — no monkey-patching of `R
 
 ```
                    Compile Time (Babel)                    Runtime
-                   ─────────────────────                   ───────
+                   ────────────────────                    ───────
 
 style={(t) => ({...})}                                     __resolveStyle calls
         │                                                  the function with

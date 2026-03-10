@@ -5,20 +5,22 @@ import { defaultTheme, defaultCSSVariables } from './config/defaults';
  * Static fallback tokens — no native API calls at module init time.
  * These are replaced by real values once StyleProvider mounts.
  */
+const fallbackColors: Record<string, string> = {
+  ...defaultTheme.colors,
+  ...defaultCSSVariables.light,
+};
+
 const fallbackTokens: StyleTokens = {
   theme: {
     spacing: defaultTheme.spacing,
     fontSize: defaultTheme.fontSize,
     borderRadius: defaultTheme.borderRadius,
     fontWeight: defaultTheme.fontWeight,
-    colors: defaultTheme.colors,
+    colors: fallbackColors,
     shadows: defaultTheme.shadows ?? {},
     opacity: defaultTheme.opacity,
   },
-  colors: {
-    ...defaultTheme.colors,
-    ...defaultCSSVariables.light,
-  },
+  colors: fallbackColors,
   dark: false,
   colorScheme: 'light',
   breakpoint: 'sm',

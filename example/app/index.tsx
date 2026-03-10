@@ -314,6 +314,7 @@ function TokenInfoBar() {
 
 function ColorPalette() {
   const { theme } = useTheme();
+  console.log({ theme })
   const colorEntries = Object.entries(theme.colors);
 
   return (
@@ -775,11 +776,14 @@ function AppContent() {
         flex: 1,
         backgroundColor: t.colors.background,
       })}
-      contentContainerStyle={(t) => ({
-        padding: t.theme.spacing[4],
-        paddingTop: t.insets.top + t.theme.spacing[4],
-        paddingBottom: t.insets.bottom + t.theme.spacing[6],
-      })}
+      contentContainerStyle={(t) => {
+        console.log({ t })
+        return{
+          padding: t.theme.spacing[4],
+          paddingTop: t.insets.top + t.theme.spacing[4],
+          paddingBottom: t.insets.bottom + t.theme.spacing[6],
+        }
+      }}
     >
       <Text
         style={(t) => ({

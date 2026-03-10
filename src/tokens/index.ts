@@ -49,7 +49,7 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
       fontSize: theme.fontSize,
       borderRadius: theme.borderRadius,
       fontWeight: theme.fontWeight,
-      colors: theme.colors,
+      colors,
       shadows: theme.shadows ?? {},
       opacity: theme.opacity,
     },
