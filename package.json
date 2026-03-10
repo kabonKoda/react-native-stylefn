@@ -10,22 +10,19 @@
       "types": "./lib/typescript/src/index.d.ts",
       "default": "./lib/module/index.js"
     },
+    "./auto": {
+      "source": "./src/auto.ts",
+      "types": "./lib/typescript/src/auto.d.ts",
+      "default": "./lib/module/auto.js"
+    },
+    "./babel-plugin": "./babel-plugin/index.js",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
     "lib",
-    "android",
-    "ios",
-    "cpp",
-    "*.podspec",
-    "react-native.config.js",
-    "!ios/build",
-    "!android/build",
-    "!android/gradle",
-    "!android/gradlew",
-    "!android/gradlew.bat",
-    "!android/local.properties",
+    "babel-plugin",
+    "scripts",
     "!**/__tests__",
     "!**/__fixtures__",
     "!**/__mocks__",
@@ -38,10 +35,22 @@
     "typecheck": "tsc",
     "release": "release-it --only-version",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
-    "test": "jest"
+    "test": "jest",
+    "postinstall": "node scripts/setup.js",
+    "setup": "node scripts/setup.js"
   },
   "keywords": [
     "react-native",
+    "style",
+    "styling",
+    "design-tokens",
+    "tailwind",
+    "dark-mode",
+    "responsive",
+    "breakpoints",
+    "theme",
+    "babel-plugin",
+    "typescript",
     "ios",
     "android"
   ],
