@@ -179,10 +179,10 @@ export interface TokenResolverParams {
 }
 
 /**
- * Dark mode hook return type.
+ * Theme hook return type (dark mode control).
  */
-export interface UseDarkReturn {
-  dark: boolean;
-  setDark: (value: boolean) => void;
-  toggleDark: () => void;
+export interface UseThemeReturn {
+  theme: boolean;
+  setTheme: (value: boolean) => void;
+  toggleTheme: () => void;
 }

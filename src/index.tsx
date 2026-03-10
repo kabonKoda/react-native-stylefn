@@ -7,8 +7,8 @@ export { StyleProvider } from './provider';
 export type { StyleProviderProps } from './provider';
 
 // Hooks
+export { useStyleFn } from './hooks/useStyleFn';
 export { useTheme } from './hooks/useTheme';
-export { useDark } from './hooks/useDark';
 
 // Types — exported for consumers to use in their own code
 export type {
@@ -24,7 +24,7 @@ export type {
   PlatformOS,
   ScreenInfo,
   Insets,
-  UseDarkReturn,
+  UseThemeReturn,
   RNStyle,
 } from './types';
 

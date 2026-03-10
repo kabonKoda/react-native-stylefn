@@ -16,14 +16,14 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { useTheme, useDark } from 'react-native-stylefn';
+import { useStyleFn, useTheme } from 'react-native-stylefn';
 
 // =============================================================================
 // Example: Dark Mode Toggle
 // =============================================================================
 
 function DarkModeToggle() {
-  const { dark, toggleDark } = useDark();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <View
@@ -46,7 +46,7 @@ function DarkModeToggle() {
       >
         Dark Mode
       </Text>
-      <Switch value={dark} onValueChange={toggleDark} />
+      <Switch value={theme} onValueChange={toggleTheme} />
     </View>
   );
 }
@@ -157,7 +157,7 @@ function OrientationDemo() {
 // =============================================================================
 
 function AccessibilityDemo() {
-  const { reducedMotion, fontScale, boldText } = useTheme();
+  const { reducedMotion, fontScale, boldText } = useStyleFn();
 
   return (
     <View
@@ -258,7 +258,7 @@ function ArrayStyleDemo() {
 
 function TokenInfoBar() {
   const { breakpoint, orientation, platform, screen, colorScheme } =
-    useTheme();
+    useStyleFn();
 
   return (
     <View
@@ -313,7 +313,7 @@ function TokenInfoBar() {
 // =============================================================================
 
 function ColorPalette() {
-  const { theme } = useTheme();
+  const { theme } = useStyleFn();
   console.log({ theme })
   const colorEntries = Object.entries(theme.colors);
 
@@ -430,7 +430,7 @@ function StyleSheetDemo() {
 // =============================================================================
 
 function AnimatedStyleDemo() {
-  const { colors, theme, dark, reducedMotion } = useTheme();
+  const { colors, theme, dark, reducedMotion } = useStyleFn();
 
   // Shared values for animations
   const scale = useSharedValue(1);
@@ -547,7 +547,7 @@ function AnimatedStyleDemo() {
               textAlign: 'center' as const,
             }}
           >
-            useAnimatedStyle + useTheme() tokens{'\n'}
+            useAnimatedStyle + useStyleFn() tokens{'\n'}
             {reducedMotion ? '(reduced motion — no float)' : '(floating animation active)'}
           </Text>
         </Animated.View>
@@ -624,7 +624,7 @@ function StyledCard({
   style?: ((t: any) => any) | object;
   children?: React.ReactNode;
 }) {
-  const tokens = useTheme();
+  const tokens = useStyleFn();
 
   // Resolve the style: if it's a function, call it with tokens
   const resolvedStyle =
@@ -694,7 +694,7 @@ function StyledText({
   style?: ((t: any) => any) | object;
   children: React.ReactNode;
 }) {
-  const tokens = useTheme();
+  const tokens = useStyleFn();
   const resolvedStyle =
     typeof style === 'function' ? style(tokens) : style ?? {};
 
@@ -736,7 +736,7 @@ function CustomComponentDemo() {
             color: t.colors['text-muted'],
           })}
         >
-          This card resolves style functions internally via useTheme(),
+          This card resolves style functions internally via useStyleFn(),
           shows the generated style JSON, then passes it to the native View.
         </StyledText>
       </StyledCard>

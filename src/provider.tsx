@@ -200,7 +200,7 @@ export function StyleProvider({
   // Update store synchronously before children render
   setTokenStore(tokens);
 
-  // Notify listeners after render (for hooks like useTheme)
+  // Notify listeners after render (for hooks like useStyleFn)
   useEffect(() => {
     notifyTokenStoreListeners();
   }, [tokens]);

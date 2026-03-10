@@ -1,30 +1,51 @@
-import { useSyncExternalStore } from 'react';
-import type { StyleTokens } from '../types';
-import { getTokenStore, subscribeTokenStore } from '../store';
+import { useCallback } from 'react';
+import type { UseThemeReturn } from '../types';
+import { useStyleFn } from './useStyleFn';
+import {
+  getManualDark,
+  setManualDark,
+  setTokenStore,
+  getTokenStore,
+  notifyTokenStoreListeners,
+} from '../store';
 
 /**
- * Access the full token store inside component logic,
- * event handlers, or animations where a style prop isn't available.
+ * Manual dark mode control hook.
  *
- * Re-renders the component when any token value changes.
+ * Returns the current theme state and setters to toggle it.
+ * Only effective when `darkMode: 'manual'` is set in config.
  *
  * @example
  * ```tsx
- * function MyComponent() {
- *   const { dark, colors, breakpoint } = useTheme();
+ * function SettingsScreen() {
+ *   const { theme, toggleTheme } = useTheme();
  *
- *   const handlePress = () => {
- *     analytics.track('tap', { theme: dark ? 'dark' : 'light' });
- *   };
- *
- *   return <Pressable onPress={handlePress} />;
+ *   return (
+ *     <Switch value={theme} onValueChange={toggleTheme} />
+ *   );
  * }
  * ```
  */
-export function useTheme(): StyleTokens {
-  return useSyncExternalStore(
-    subscribeTokenStore,
-    getTokenStore,
-    getTokenStore // server snapshot (same as client for RN)
-  );
+export function useTheme(): UseThemeReturn {
+  const { dark } = useStyleFn();
+
+  const setTheme = useCallback((value: boolean) => {
+    setManualDark(value);
+    // Update the store immediately with new dark mode
+    const currentStore = getTokenStore();
+    setTokenStore({
+      ...currentStore,
+      dark: value,
+      colorScheme: value ? 'dark' : 'light',
+    });
+    notifyTokenStoreListeners();
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    const current = getManualDark();
+    const next = current === null ? !dark : !current;
+    setTheme(next);
+  }, [dark, setTheme]);
+
+  return { theme: dark, setTheme, toggleTheme };
 }

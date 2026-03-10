@@ -17,7 +17,7 @@ Write style _functions_ instead of style objects. Every function receives rich c
 - 📦 **Zero config** — works out of the box with sensible defaults
 - 🎯 **Full TypeScript** — automatic type patching, complete autocomplete on every token
 - 🔌 **Babel plugin** — transforms style props at build time, patches `StyleSheet.create` at runtime
-- 🎬 **Reanimated compatible** — works with `useAnimatedStyle` via `useTheme()` hook
+- 🎬 **Reanimated compatible** — works with `useAnimatedStyle` via `useStyleFn()` hook
 
 ## Installation
 
@@ -140,10 +140,10 @@ const styles = StyleSheet.create({
 
 ```tsx
 import Animated, { useAnimatedStyle, withSpring, useSharedValue } from 'react-native-reanimated';
-import { useTheme } from 'react-native-stylefn';
+import { useStyleFn } from 'react-native-stylefn';
 
 function AnimatedCard() {
-  const { colors, theme, dark } = useTheme();
+  const { colors, theme, dark } = useStyleFn();
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -168,10 +168,10 @@ function AnimatedCard() {
 ### 8. Build custom components with style functions
 
 ```tsx
-import { useTheme } from 'react-native-stylefn';
+import { useStyleFn } from 'react-native-stylefn';
 
 function StyledCard({ style, children }) {
-  const tokens = useTheme();
+  const tokens = useStyleFn();
 
   // Resolve: if style is a function, call it with tokens
   const resolvedStyle = typeof style === 'function' ? style(tokens) : style;
@@ -231,15 +231,15 @@ Every style function receives a `StyleTokens` object:
 
 ## Hooks
 
-### `useTheme()`
+### `useStyleFn()`
 
 Access tokens inside component logic, event handlers, or animations:
 
 ```tsx
-import { useTheme } from 'react-native-stylefn';
+import { useStyleFn } from 'react-native-stylefn';
 
 function MyComponent() {
-  const { dark, colors, breakpoint, theme } = useTheme();
+  const { dark, colors, breakpoint, theme } = useStyleFn();
 
   return (
     <Pressable onPress={() => analytics.track('tap', { theme: dark ? 'dark' : 'light' })}>
@@ -249,20 +249,20 @@ function MyComponent() {
 }
 ```
 
-### `useDark()`
+### `useTheme()`
 
 Manual dark mode control (when `darkMode: 'manual'` is set):
 
 ```tsx
-import { useDark } from 'react-native-stylefn';
+import { useTheme } from 'react-native-stylefn';
 
 function SettingsScreen() {
-  const { dark, setDark, toggleDark } = useDark();
+  const { theme, setTheme, toggleTheme } = useTheme();
 
   return (
     <View>
-      <Text>Dark Mode: {dark ? 'On' : 'Off'}</Text>
-      <Switch value={dark} onValueChange={toggleDark} />
+      <Text>Dark Mode: {theme ? 'On' : 'Off'}</Text>
+      <Switch value={theme} onValueChange={toggleTheme} />
     </View>
   );
 }
@@ -481,8 +481,8 @@ src/
 │   ├── accessibility.ts
 │   └── index.ts       # assembles full StyleTokens
 ├── hooks/
-│   ├── useTheme.ts    # access tokens in component logic
-│   └── useDark.ts     # manual dark mode toggle
+│   ├── useStyleFn.ts  # access tokens in component logic
+│   └── useTheme.ts    # manual dark mode toggle
 ├── types.ts           # full TypeScript types
 ├── stylefn.d.ts       # type augmentation for RN components
 └── index.tsx          # public exports
@@ -501,8 +501,8 @@ scripts/
 | Export | Description |
 |--------|-------------|
 | `StyleProvider` | Provider component — wraps your app |
-| `useTheme()` | Access tokens in component logic |
-| `useDark()` | Manual dark mode control |
+| `useStyleFn()` | Access tokens in component logic |
+| `useTheme()` | Manual dark mode control |
 | `create()` | StyleSheet.create replacement with style function support |
 | `__resolveStyle()` | Style resolver (used by Babel plugin, can be used manually) |
 | `getTokenStore()` | Direct access to the token store singleton |
