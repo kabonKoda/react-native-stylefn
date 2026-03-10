@@ -16,12 +16,14 @@
       "default": "./lib/module/auto.js"
     },
     "./babel-plugin": "./babel-plugin/index.js",
+    "./metro-config": "./metro-config/index.js",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
     "lib",
     "babel-plugin",
+    "metro-config",
     "scripts",
     "!**/__tests__",
     "!**/__fixtures__",

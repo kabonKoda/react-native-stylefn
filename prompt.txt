@@ -1,0 +1,257 @@
+Build react-native-stylefn — A Tailwind-Inspired Auto-Injecting Style Utility for React Native
+What You're Building
+A React Native styling library that brings Tailwind's constraint-based design token system directly into the style prop of every component in the entire app — automatically, with zero per-component setup.
+Developers write style functions instead of style objects. Those functions receive rich contextual tokens — theme, dark mode, breakpoints, orientation, platform, and more — and return a standard RN style object. The library intercepts React's render pipeline to resolve these functions transparently before they hit the component.
+
+Core API — What the Developer Writes
+No imports per component. No hooks. No wrappers. No classNames. Just write a function anywhere a style prop is accepted:
+jsx<View style={({ dark, colors, breakpoint, orientation }) => ({
+  backgroundColor: dark ? colors.background.dark : colors.background.light,
+  padding: breakpoint === 'lg' ? 24 : 12,
+  flexDirection: orientation === 'landscape' ? 'row' : 'column',
+})} />
+
+<Text style={({ theme, fontScale }) => ({
+  fontSize: theme.fontSize.base * fontScale,
+  color: theme.colors.text,
+})} />
+
+<TextInput style={({ dark, colors, insets }) => ({
+  backgroundColor: colors.input,
+  paddingBottom: insets.bottom + 8,
+})} />
+
+// Array styles with mixed functions and objects also work
+<View style={[
+  { flex: 1 },
+  ({ dark }) => ({ backgroundColor: dark ? '#000' : '#fff' }),
+  ({ breakpoint }) => breakpoint === 'sm' && { padding: 8 },
+]} />
+This works on every component in the entire app — RN built-ins, third-party library components, and custom components — as long as they accept a style prop. No enumerated list of supported components. No maintenance. It's universal.
+
+How It Works — Patch React.createElement
+The entire system is powered by a single patch applied once at app boot. Instead of targeting specific components, the library intercepts React's own rendering pipeline:
+ts// patch.ts
+import React from 'react';
+import { getTokenStore } from './store';
+
+const resolveStyleProp = (value: unknown) => {
+  if (typeof value === 'function') {
+    return value(getTokenStore());
+  }
+  if (Array.isArray(value) && value.some(s => typeof s === 'function')) {
+    return value.map(s => typeof s === 'function' ? s(getTokenStore()) : s);
+  }
+  return value;
+};
+
+const originalCreateElement = React.createElement;
+
+React.createElement = (type, props, ...children) => {
+  if (props) {
+    let patched = false;
+    const newProps: Record<string, unknown> = {};
+
+    for (const key in props) {
+      // catch style, contentContainerStyle, indicatorStyle, containerStyle, etc.
+      if (key.endsWith('Style') || key.endsWith('style')) {
+        const resolved = resolveStyleProp(props[key]);
+        if (resolved !== props[key]) patched = true;
+        newProps[key] = resolved;
+      }
+    }
+
+    if (patched) {
+      props = { ...props, ...newProps };
+    }
+  }
+
+  return originalCreateElement(type, props, ...children);
+};
+This intercepts every JSX element rendered in the entire tree. It doesn't care what the component is — only whether props.style is a function. Patch it once inside StyleProvider at the root and it's universal across the whole app forever.
+
+Singleton Token Store
+Because the patch runs outside React's render tree, tokens must live in a framework-agnostic singleton that is always synchronously readable:
+ts// store.ts
+import type { TokenStore } from './types';
+import { defaultTokens } from './tokens';
+
+let _store: TokenStore = defaultTokens;
+
+export const getTokenStore = (): TokenStore => _store;
+export const setTokenStore = (tokens: TokenStore): void => { _store = tokens; };
+StyleProvider subscribes to all device and system events and calls setTokenStore() whenever anything changes — keeping the singleton always in sync with the current device state:
+tsx// provider.tsx
+export const StyleProvider = ({ children, config }) => {
+  const colorScheme = useColorScheme();
+  const dimensions = useDimensions();
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  const fontScale = useFontScale();
+
+  // Apply the patch once on mount
+  useEffect(() => { applyPatch(); }, []);
+
+  // Keep singleton in sync
+  useEffect(() => {
+    setTokenStore(resolveTokens({ colorScheme, dimensions, insets, reducedMotion, fontScale, config }));
+  }, [colorScheme, dimensions, insets, reducedMotion, fontScale]);
+
+  return <>{children}</>;
+};
+
+Token Shape — Everything Injected into Every Style Function
+tstype StyleTokens = {
+  // Design system
+  theme: {
+    spacing: Record<string, number>;
+    fontSize: Record<string, number>;
+    borderRadius: Record<string, number>;
+    fontWeight: Record<string, string>;
+    colors: Record<string, string>;
+    shadows: Record<string, object>;
+    opacity: Record<string, number>;
+  };
+  colors: Record<string, string>;     // resolved palette for current color scheme
+
+  // Color mode
+  dark: boolean;
+  colorScheme: 'light' | 'dark';
+
+  // Responsive
+  breakpoint: 'sm' | 'md' | 'lg' | 'xl';
+  screen: {
+    width: number;
+    height: number;
+    scale: number;
+    fontScale: number;
+  };
+
+  // Device
+  orientation: 'portrait' | 'landscape';
+  platform: 'ios' | 'android' | 'web';
+
+  // Safe area
+  insets: {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+  };
+
+  // Accessibility
+  reducedMotion: boolean;
+  fontScale: number;
+  boldText: boolean;
+  highContrast: boolean;
+};
+
+Configuration Files
+rn-stylefn.config.js — mirrors tailwind.config.js, lives at project root:
+jsmodule.exports = {
+  theme: {
+    spacing:      { 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, 12: 48 },
+    fontSize:     { xs: 10, sm: 12, base: 14, lg: 16, xl: 20, '2xl': 24, '3xl': 30 },
+    borderRadius: { none: 0, sm: 4, md: 8, lg: 12, xl: 16, '2xl': 24, full: 9999 },
+    fontWeight:   { normal: '400', medium: '500', semibold: '600', bold: '700' },
+    opacity:      { 0: 0, 25: 0.25, 50: 0.5, 75: 0.75, 100: 1 },
+    screens:      { sm: 0, md: 375, lg: 430, xl: 768 },
+    colors: {
+      primary:    '#3b82f6',
+      secondary:  '#8b5cf6',
+      danger:     '#ef4444',
+      success:    '#22c55e',
+      warning:    '#f59e0b',
+    },
+    extend: {},   // deep merged on top of defaults
+  },
+  darkMode: 'system',   // 'system' | 'manual'
+}
+global.css — CSS custom properties parsed at boot, mapped into colors.* tokens:
+css:root {
+  --color-background:  #ffffff;
+  --color-surface:     #f5f5f5;
+  --color-border:      #e5e7eb;
+  --color-text:        #111827;
+  --color-text-muted:  #6b7280;
+  --color-primary:     #3b82f6;
+}
+
+.dark {
+  --color-background:  #0f172a;
+  --color-surface:     #1e293b;
+  --color-border:      #334155;
+  --color-text:        #f8fafc;
+  --color-text-muted:  #94a3b8;
+  --color-primary:     #60a5fa;
+}
+```
+
+Both files are optional. The library ships with sensible defaults so it works out of the box with zero config.
+
+---
+
+### Architecture
+```
+react-native-stylefn/
+├── src/
+│   ├── patch.ts                  # patches React.createElement — the core of everything
+│   ├── store.ts                  # singleton token store (get/set)
+│   ├── provider.tsx              # StyleProvider — boots patch, syncs store to device state
+│   ├── config/
+│   │   ├── defaults.ts           # built-in theme defaults
+│   │   ├── loader.ts             # reads rn-stylefn.config.js from project root
+│   │   ├── resolver.ts           # deep merges user config + extend + defaults
+│   │   └── cssParser.ts          # parses global.css, extracts :root and .dark vars
+│   ├── tokens/
+│   │   ├── breakpoint.ts         # derives sm/md/lg/xl from screen.width
+│   │   ├── orientation.ts        # portrait/landscape from dimensions
+│   │   ├── accessibility.ts      # reducedMotion, boldText, highContrast, fontScale
+│   │   └── index.ts              # assembles full TokenStore from all sources
+│   ├── hooks/
+│   │   ├── useTheme.ts           # access tokens in component logic (not style)
+│   │   └── useDark.ts            # manual dark mode toggle when darkMode: 'manual'
+│   └── index.ts                  # public exports: StyleProvider, useTheme, useDark
+├── babel-plugin/
+│   ├── index.js                  # optional build-time optimization (not required)
+│   └── __tests__/
+├── rn-stylefn.config.js            # default config
+└── README.md
+
+Developer Setup — That's All They Do
+tsx// App.tsx
+import { StyleProvider } from 'react-native-stylefn';
+
+export default function App() {
+  return (
+    <StyleProvider>
+      <RootNavigator />
+    </StyleProvider>
+  );
+}
+Done. Every component in the entire app now accepts style functions automatically. No per-file imports. No HOCs. No className. No codegen.
+
+Additional Implementation Requirements
+
+TypeScript throughout — full generic types and autocomplete on the TokenStore shape inside every style function
+Array style support — mixed arrays of plain objects and functions all resolve correctly
+Falsy value handling — false, null, undefined in style arrays are safely ignored (standard RN behavior preserved)
+Zero performance overhead when unused — the patch short-circuits immediately if props.style is not a function or array containing functions
+useTheme() hook — for accessing tokens inside component logic, event handlers, or animations where a style prop isn't available
+useDark() hook — returns { dark, setDark } for manual dark mode control when darkMode: 'manual' is set in config
+CSS variable scoping — :root maps to light mode, .dark maps to dark mode, any other selector is ignored with a dev warning
+Config hot reload in dev — watch rn-stylefn.config.js for changes and re-resolve tokens without restarting the bundler
+Babel plugin (optional, additive) — resolves static style functions at compile time as a pure perf optimization; the runtime patch works fully without it
+
+
+Deliverables
+
+Fully working TypeScript npm package
+patch.ts — React.createElement intercept as the universal injection mechanism
+store.ts — singleton token store readable synchronously from anywhere
+StyleProvider — boots the patch, subscribes to all device/system state, keeps store current
+Config loader for rn-stylefn.config.js + CSS variable parser for global.css
+Full token shape as specified above
+useTheme() and useDark() hooks
+README with setup guide, full token reference, and usage examples
+Example Expo app demonstrating dark mode, breakpoints, orientation, insets, and accessibility tokens in real components
