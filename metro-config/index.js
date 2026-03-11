@@ -111,10 +111,32 @@ function toUnion(keys) {
   return unique.map((k) => `'${k}'`).join(' | ');
 }
 
+// =============================================================================
+// Built-in default theme keys (must match src/config/defaults.ts)
+// These are included in type declarations so users always get autocomplete
+// for default keys even when they only use theme.extend.
+// =============================================================================
+const DEFAULT_THEME_KEYS = {
+  spacing: ['0', '1', '2', '3', '4', '5', '6', '8', '10', '12'],
+  fontSize: ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl'],
+  borderRadius: ['none', 'sm', 'md', 'lg', 'xl', '2xl', 'full'],
+  fontWeight: ['normal', 'medium', 'semibold', 'bold'],
+  opacity: ['0', '25', '50', '75', '100'],
+  screens: ['sm', 'md', 'lg', 'xl'],
+  colors: ['primary', 'secondary', 'danger', 'success', 'warning'],
+  shadows: ['sm', 'md', 'lg'],
+};
+
 /**
  * Generate stylefn.d.ts with ThemeKeyRegistry augmentation
- * based on the user's actual config and CSS variables.
+ * based on the built-in defaults, user's config, and CSS variables.
  * Written into node_modules/react-native-stylefn/.
+ *
+ * Key merge strategy (matches runtime resolveTheme behavior):
+ * - If user provides a top-level theme section (e.g. theme.spacing),
+ *   it REPLACES defaults for that section (only user keys are used).
+ * - If user only uses theme.extend, defaults are preserved and
+ *   extended keys are added on top.
  */
 function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
   try {
@@ -129,23 +151,46 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     const theme = userConfig.theme || {};
     const extend = theme.extend || {};
 
-    // Extract keys from each theme section (merge base + extend)
-    const spacingKeys = Object.keys({ ...theme.spacing, ...extend.spacing });
-    const fontSizeKeys = Object.keys({ ...theme.fontSize, ...extend.fontSize });
-    const borderRadiusKeys = Object.keys({ ...theme.borderRadius, ...extend.borderRadius });
-    const fontWeightKeys = Object.keys({ ...theme.fontWeight, ...extend.fontWeight });
-    const opacityKeys = Object.keys({ ...theme.opacity, ...extend.opacity });
-    const screenKeys = Object.keys({ ...theme.screens, ...extend.screens });
+    // Helper: resolve keys for a section with Tailwind-like merge semantics.
+    // If the user provides a top-level section, it REPLACES defaults.
+    // Extend always adds on top (of either defaults or the user's override).
+    function resolveKeys(sectionName, defaultKeys) {
+      const userSection = theme[sectionName];
+      const extendSection = extend[sectionName];
 
-    // Shadow keys: from both shadows and boxShadow
-    const shadowKeys = Object.keys({
-      ...theme.shadows, ...theme.boxShadow,
-      ...extend.shadows, ...extend.boxShadow,
-    });
+      // Start with defaults, unless user provided a top-level override (which replaces)
+      let baseKeys = userSection ? Object.keys(userSection) : [...defaultKeys];
+
+      // Merge extend keys on top
+      if (extendSection) {
+        baseKeys = [...baseKeys, ...Object.keys(extendSection)];
+      }
+
+      return baseKeys;
+    }
+
+    // Extract keys from each theme section (defaults + user overrides + extend)
+    const spacingKeys = resolveKeys('spacing', DEFAULT_THEME_KEYS.spacing);
+    const fontSizeKeys = resolveKeys('fontSize', DEFAULT_THEME_KEYS.fontSize);
+    const borderRadiusKeys = resolveKeys('borderRadius', DEFAULT_THEME_KEYS.borderRadius);
+    const fontWeightKeys = resolveKeys('fontWeight', DEFAULT_THEME_KEYS.fontWeight);
+    const opacityKeys = resolveKeys('opacity', DEFAULT_THEME_KEYS.opacity);
+    const screenKeys = resolveKeys('screens', DEFAULT_THEME_KEYS.screens);
+
+    // Shadow keys: from both shadows and boxShadow (merge all sources)
+    const userShadowKeys = theme.shadows || theme.boxShadow
+      ? Object.keys({ ...theme.shadows, ...theme.boxShadow })
+      : [...DEFAULT_THEME_KEYS.shadows];
+    const extendShadowKeys = Object.keys({ ...extend.shadows, ...extend.boxShadow });
+    const shadowKeys = [...userShadowKeys, ...extendShadowKeys];
 
     // Color keys: flatten nested objects from config
-    const configColors = { ...theme.colors, ...extend.colors };
-    const configColorKeys = flattenColorKeys(configColors);
+    // If user provides top-level colors, it replaces defaults; extend adds on top
+    const userColorKeys = theme.colors
+      ? flattenColorKeys(theme.colors)
+      : [...DEFAULT_THEME_KEYS.colors];
+    const extendColorKeys = extend.colors ? flattenColorKeys(extend.colors) : [];
+    const configColorKeys = [...userColorKeys, ...extendColorKeys];
 
     // CSS variable color keys (--color-* from global.css)
     const cssColorKeys = [
