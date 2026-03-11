@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { ViewStyle, TextStyle, ImageStyle } from 'react-native';
 
 // =============================================================================
@@ -22,8 +23,10 @@ export interface ThemeKeyOverrides {}
  * Conditional type: if ThemeKeyOverrides has property K, use its type;
  * otherwise fall back to the Default type.
  */
-type OverrideOr<K extends string, Default extends string> =
-  ThemeKeyOverrides extends Record<K, infer V> ? V & string : Default;
+type OverrideOr<
+  K extends string,
+  Default extends string
+> = ThemeKeyOverrides extends Record<K, infer V> ? V & string : Default;
 
 /**
  * Registry of known theme keys for TypeScript autocomplete.
@@ -33,13 +36,26 @@ type OverrideOr<K extends string, Default extends string> =
  * Those overrides take precedence over the defaults below.
  */
 export interface ThemeKeyRegistry {
-  spacing: OverrideOr<'spacing', '0' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | '10' | '12'>;
-  fontSize: OverrideOr<'fontSize', 'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl'>;
-  borderRadius: OverrideOr<'borderRadius', 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full'>;
-  fontWeight: OverrideOr<'fontWeight', 'normal' | 'medium' | 'semibold' | 'bold'>;
+  spacing: OverrideOr<
+    'spacing',
+    '0' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | '10' | '12'
+  >;
+  fontSize: OverrideOr<
+    'fontSize',
+    'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl'
+  >;
+  borderRadius: OverrideOr<
+    'borderRadius',
+    'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full'
+  >;
+  fontWeight: OverrideOr<
+    'fontWeight',
+    'normal' | 'medium' | 'semibold' | 'bold'
+  >;
   opacity: OverrideOr<'opacity', '0' | '25' | '50' | '75' | '100'>;
   shadow: OverrideOr<'shadow', 'sm' | 'md' | 'lg'>;
-  color: OverrideOr<'color',
+  color: OverrideOr<
+    'color',
     | 'primary'
     | 'secondary'
     | 'danger'
@@ -49,7 +65,8 @@ export interface ThemeKeyRegistry {
     | 'surface'
     | 'border'
     | 'text'
-    | 'text-muted'>;
+    | 'text-muted'
+  >;
   breakpoint: OverrideOr<'breakpoint', 'sm' | 'md' | 'lg' | 'xl'>;
 }
 
@@ -370,6 +387,34 @@ export type StyleProp<S = RNStyle> =
   | false
   | null
   | undefined;
+
+/**
+ * A children value that can be either static ReactNode content or a function
+ * receiving tokens and returning ReactNode content. This enables the
+ * render-children (children-as-function) pattern with access to design tokens.
+ *
+ * Use this to type the `children` prop in components that support the
+ * render-children pattern.
+ *
+ * @example
+ * ```tsx
+ * import type { ChildrenFunction } from 'react-native-stylefn';
+ *
+ * interface CardProps {
+ *   children: ChildrenFunction;
+ * }
+ *
+ * // Usage:
+ * <Card>
+ *   {(t) => (
+ *     <Text style={{ color: t.colors.text }}>
+ *       {t.dark ? 'Dark Mode' : 'Light Mode'}
+ *     </Text>
+ *   )}
+ * </Card>
+ * ```
+ */
+export type ChildrenFunction<T = ReactNode> = T | ((tokens: StyleTokens) => T);
 
 /**
  * A prop value that can be either a static value or a function receiving tokens.

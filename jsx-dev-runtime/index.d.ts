@@ -10,28 +10,32 @@ export { Fragment } from 'react';
 // and in published packages — no dependency on module path alias resolution.
 type _StyleFnTokens = import('../src/types').StyleTokens;
 type _StyleFnForStyle = (_tokens: _StyleFnTokens) => any;
-type _StylePropHasFn<T> = ((_tokens: _StyleFnTokens) => any) extends T ? true : false;
+type _ChildrenFnForTokens = (_tokens: _StyleFnTokens) => React.ReactNode;
+type _StylePropHasFn<T> = ((_tokens: _StyleFnTokens) => any) extends T
+  ? true
+  : false;
 
 type _WithTokenFunctions<P> = {
-  [K in keyof P]: K extends
-    | 'key'
-    | 'ref'
-    | 'children'
-    | 'testID'
-    | 'nativeID'
-    | 'accessibilityLabel'
-    | 'keyExtractor'
-    | 'getItem'
-    | 'getItemCount'
-    | 'getItemLayout'
-    | 'ListHeaderComponent'
-    | 'ListFooterComponent'
-    | 'ListEmptyComponent'
-    | 'ItemSeparatorComponent'
-    | 'SectionSeparatorComponent'
-    | 'CellRendererComponent'
-    | 'component'
-    | 'getComponent'
+  [K in keyof P]: K extends 'children'
+    ? P[K] | _ChildrenFnForTokens
+    : K extends
+        | 'key'
+        | 'ref'
+        | 'testID'
+        | 'nativeID'
+        | 'accessibilityLabel'
+        | 'keyExtractor'
+        | 'getItem'
+        | 'getItemCount'
+        | 'getItemLayout'
+        | 'ListHeaderComponent'
+        | 'ListFooterComponent'
+        | 'ListEmptyComponent'
+        | 'ItemSeparatorComponent'
+        | 'SectionSeparatorComponent'
+        | 'CellRendererComponent'
+        | 'component'
+        | 'getComponent'
     ? P[K]
     : K extends string
     ? K extends `on${string}`
@@ -43,7 +47,16 @@ type _WithTokenFunctions<P> = {
       : K extends 'style' | `${string}Style` | `${string}style`
       ? _StylePropHasFn<P[K]> extends true
         ? P[K]
-        : P[K] | _StyleFnForStyle | ReadonlyArray<Record<string, any> | _StyleFnForStyle | false | null | undefined>
+        :
+            | P[K]
+            | _StyleFnForStyle
+            | ReadonlyArray<
+                | Record<string, any>
+                | _StyleFnForStyle
+                | false
+                | null
+                | undefined
+              >
       : P[K] | ((_tokens: _StyleFnTokens) => NonNullable<P[K]>)
     : P[K];
 };

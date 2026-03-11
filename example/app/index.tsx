@@ -1058,6 +1058,118 @@ function UsePropsFnDemo() {
 }
 
 // =============================================================================
+// Example: Children as Functions (Render Children Pattern)
+// =============================================================================
+
+function ChildrenFunctionDemo() {
+  return (
+    <View
+      style={(t) => ({
+        marginBottom: t.theme.spacing[3],
+      })}
+    >
+      <Text
+        style={(t) => ({
+          fontSize: t.theme.fontSize.lg,
+          fontWeight: t.theme.fontWeight.bold,
+          color: t.colors.text,
+          marginBottom: t.theme.spacing[2],
+        })}
+      >
+        Children as Functions ✓
+      </Text>
+
+      <View
+        style={(t) => ({
+          backgroundColor: t.colors.surface,
+          borderRadius: t.theme.borderRadius.lg,
+          padding: t.theme.spacing[4],
+          borderWidth: 1,
+          borderColor: t.colors.border,
+        })}
+      >
+        <Text
+          style={(t) => ({
+            fontSize: t.theme.fontSize.sm,
+            color: t.colors['text-muted'],
+            marginBottom: t.theme.spacing[3],
+          })}
+        >
+          Children can be a function that receives tokens. The Babel plugin
+          auto-wraps them with __resolveChildren(). Rotate your device or toggle
+          dark mode to see changes!
+        </Text>
+
+        {/* Inline function children — auto-resolved by Babel */}
+        <View
+          style={(t) => ({
+            backgroundColor: t.dark ? '#1e293b' : '#f1f5f9',
+            borderRadius: t.theme.borderRadius.md,
+            padding: t.theme.spacing[3],
+            marginBottom: t.theme.spacing[2],
+          })}
+        >
+          {(t) => (
+            <Text
+              style={{
+                fontSize: t.theme.fontSize.base,
+                color: t.colors.text,
+                fontWeight: t.theme.fontWeight.semibold,
+              }}
+            >
+              {t.dark ? '🌙 Dark Mode Active' : '☀️ Light Mode Active'}
+            </Text>
+          )}
+        </View>
+
+        {/* Another example: responsive layout via function children */}
+        <View
+          style={(t) => ({
+            backgroundColor: t.dark ? '#1e293b' : '#f1f5f9',
+            borderRadius: t.theme.borderRadius.md,
+            padding: t.theme.spacing[3],
+          })}
+        >
+          {(t) => (
+            <View>
+              <Text
+                style={{
+                  fontSize: t.theme.fontSize.sm,
+                  color: t.colors['text-muted'],
+                  marginBottom: 4,
+                }}
+              >
+                Breakpoint: {t.breakpoint.current}
+              </Text>
+              <Text
+                style={{
+                  fontSize: t.theme.fontSize.sm,
+                  color: t.colors['text-muted'],
+                  marginBottom: 4,
+                }}
+              >
+                Orientation:{' '}
+                {t.orientation.landscape ? 'Landscape' : 'Portrait'}
+              </Text>
+              <Text
+                style={{
+                  fontSize: t.theme.fontSize.sm,
+                  color: t.colors.text,
+                  fontWeight: t.theme.fontWeight.semibold,
+                }}
+              >
+                Screen: {Math.round(t.screen.width)}×
+                {Math.round(t.screen.height)}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// =============================================================================
 // Main App
 // =============================================================================
 
@@ -1107,6 +1219,7 @@ function AppContent() {
       <AccessibilityDemo />
       <TokenPropsDemo />
       <UsePropsFnDemo />
+      <ChildrenFunctionDemo />
       <AnimatedStyleDemo />
       <CustomComponentDemo />
       <ArrayStyleDemo />

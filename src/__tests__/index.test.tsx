@@ -358,7 +358,7 @@ import {
   resolveViewportUnits,
   evaluateCalc,
 } from '../units';
-import { __resolveStyle, __resolveProp } from '../resolve';
+import { __resolveStyle, __resolveProp, __resolveChildren } from '../resolve';
 
 describe('vh / vw standalone helpers', () => {
   // Default fallback screen: 375×812
@@ -469,7 +469,11 @@ describe('resolveViewportUnits', () => {
   it('converts fraction strings in a style object', () => {
     const style = { width: '1/2', height: '1/3', color: 'red' };
     const resolved = resolveViewportUnits(style);
-    expect(resolved).toEqual({ width: '50%', height: `${(1 / 3) * 100}%`, color: 'red' });
+    expect(resolved).toEqual({
+      width: '50%',
+      height: `${(1 / 3) * 100}%`,
+      color: 'red',
+    });
   });
 
   it('returns original object if no viewport units present', () => {
@@ -710,5 +714,72 @@ describe('__resolveProp', () => {
     // __resolveProp should NOT convert strings like '50vw'
     const propFn = () => '50vw';
     expect(__resolveProp(propFn)).toBe('50vw');
+  });
+});
+
+// =============================================================================
+// __resolveChildren: Token functions in children (render children pattern)
+// =============================================================================
+
+describe('__resolveChildren', () => {
+  it('resolves a children function to its return value', () => {
+    const childFn = (t: any) => (t.dark ? 'Dark Content' : 'Light Content');
+    const result = __resolveChildren(childFn);
+    // Default is light mode
+    expect(result).toBe('Light Content');
+  });
+
+  it('resolves a children function using orientation tokens', () => {
+    const childFn = (t: any) =>
+      t.orientation.landscape ? 'Landscape View' : 'Portrait View';
+    // Default fallback is portrait (375×812)
+    expect(__resolveChildren(childFn)).toBe('Portrait View');
+  });
+
+  it('resolves a children function using breakpoint tokens', () => {
+    const childFn = (t: any) => (t.breakpoint.up('lg') ? 'Desktop' : 'Mobile');
+    // Default fallback is 375px → md, so up('lg') is false
+    expect(__resolveChildren(childFn)).toBe('Mobile');
+  });
+
+  it('resolves a children function using screen tokens', () => {
+    const childFn = (t: any) => `Width: ${t.screen.width}`;
+    expect(__resolveChildren(childFn)).toBe('Width: 375');
+  });
+
+  it('passes through static string children unchanged', () => {
+    expect(__resolveChildren('Hello World')).toBe('Hello World');
+  });
+
+  it('passes through static number children unchanged', () => {
+    expect(__resolveChildren(42)).toBe(42);
+  });
+
+  it('passes through null children unchanged', () => {
+    expect(__resolveChildren(null)).toBeNull();
+  });
+
+  it('passes through undefined children unchanged', () => {
+    expect(__resolveChildren(undefined)).toBeUndefined();
+  });
+
+  it('passes through boolean children unchanged', () => {
+    expect(__resolveChildren(false)).toBe(false);
+    expect(__resolveChildren(true)).toBe(true);
+  });
+
+  it('passes through arrays unchanged (not invoked as function)', () => {
+    const arr = ['one', 'two'];
+    expect(__resolveChildren(arr)).toBe(arr);
+  });
+
+  it('passes through objects unchanged (not invoked as function)', () => {
+    const obj = { type: 'div', props: {} };
+    expect(__resolveChildren(obj)).toBe(obj);
+  });
+
+  it('does NOT apply viewport unit conversion (unlike __resolveStyle)', () => {
+    const childFn = () => '50vw';
+    expect(__resolveChildren(childFn)).toBe('50vw');
   });
 });

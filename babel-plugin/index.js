@@ -3,6 +3,7 @@ const IMPORT_SOURCE = 'react-native-stylefn';
 const AUTO_IMPORT = 'react-native-stylefn/auto';
 const RESOLVE_FN = '__resolveStyle';
 const RESOLVE_PROP_FN = '__resolveProp';
+const RESOLVE_CHILDREN_FN = '__resolveChildren';
 const INJECTED_COMMENT = '__stylefn_injected__';
 const VIEWPORT_UNIT_RE = /^-?\d+\.?\d*(vh|vw)$/;
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
@@ -13,7 +14,6 @@ const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const CALLBACK_PROPS = new Set([
   'key',
   'ref',
-  'children',
   'testID',
   'nativeID',
   'accessibilityLabel',
@@ -209,6 +209,35 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
         }
 
         // =====================================================================
+        // children prop: wrap arrow/function expressions with __resolveChildren
+        // =====================================================================
+        if (attrName === 'children') {
+          if (
+            !t.isArrowFunctionExpression(expr) &&
+            !t.isFunctionExpression(expr)
+          )
+            return;
+
+          // Skip if already wrapped
+          if (
+            t.isCallExpression(expr) &&
+            t.isIdentifier(expr.callee, { name: RESOLVE_CHILDREN_FN })
+          ) {
+            return;
+          }
+
+          const programPath =
+            state.__programPath || path.findParent((p) => p.isProgram());
+          ensureImport(programPath, state, RESOLVE_CHILDREN_FN);
+
+          value.expression = t.callExpression(
+            t.identifier(RESOLVE_CHILDREN_FN),
+            [expr]
+          );
+          return;
+        }
+
+        // =====================================================================
         // Non-style props: wrap arrow/function expressions with __resolveProp
         // =====================================================================
 
@@ -235,6 +264,49 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
         value.expression = t.callExpression(t.identifier(RESOLVE_PROP_FN), [
           expr,
         ]);
+      },
+
+      // =======================================================================
+      // Inline JSX children: wrap function children with __resolveChildren
+      //
+      // Handles: <Component>{(t) => <Text>{t.dark ? 'Dark' : 'Light'}</Text>}</Component>
+      //
+      // When a JSXExpressionContainer is a direct child of a JSXElement (not
+      // inside an attribute), and the expression is an arrow/function expression,
+      // wrap it with __resolveChildren() so the function receives the token store.
+      // =======================================================================
+      JSXExpressionContainer(path, state) {
+        const filename = state.filename || '';
+        if (shouldSkip(filename)) return;
+
+        // Only handle children — JSXExpressionContainers that are direct
+        // children of a JSXElement or JSXFragment, NOT attribute values.
+        const parent = path.parent;
+        if (!t.isJSXElement(parent) && !t.isJSXFragment(parent)) return;
+
+        const expr = path.node.expression;
+        if (t.isJSXEmptyExpression(expr)) return;
+
+        // Only wrap arrow functions and function expressions
+        if (!t.isArrowFunctionExpression(expr) && !t.isFunctionExpression(expr))
+          return;
+
+        // Skip if already wrapped
+        if (
+          t.isCallExpression(expr) &&
+          t.isIdentifier(expr.callee, { name: RESOLVE_CHILDREN_FN })
+        ) {
+          return;
+        }
+
+        const programPath =
+          state.__programPath || path.findParent((p) => p.isProgram());
+        ensureImport(programPath, state, RESOLVE_CHILDREN_FN);
+
+        path.node.expression = t.callExpression(
+          t.identifier(RESOLVE_CHILDREN_FN),
+          [expr]
+        );
       },
     },
   };

@@ -33,11 +33,17 @@ type _StyleFnTokens = import('../src/types').StyleTokens;
 // (e.g. `style?: ViewStyle`) to also accept token functions.
 type _StyleFnForStyle = (_tokens: _StyleFnTokens) => any;
 
+// A children function that receives tokens and returns ReactNode.
+// Used to widen the `children` prop to accept the render-children pattern.
+type _ChildrenFnForTokens = (_tokens: _StyleFnTokens) => React.ReactNode;
+
 // True when T already contains a callable type — meaning the component's style
 // prop is already typed as StyleProp<T> (patched) and includes a function type.
 // When true, we leave the prop alone to avoid adding a competing function
 // signature that would break TypeScript's contextual typing of `t`.
-type _StylePropHasFn<T> = ((_tokens: _StyleFnTokens) => any) extends T ? true : false;
+type _StylePropHasFn<T> = ((_tokens: _StyleFnTokens) => any) extends T
+  ? true
+  : false;
 
 // ---------------------------------------------------------------------------
 // Utility: widen each prop to also accept a token function, UNLESS it's a
@@ -50,28 +56,29 @@ type _StylePropHasFn<T> = ((_tokens: _StyleFnTokens) => any) extends T ? true : 
 // ---------------------------------------------------------------------------
 
 type _WithTokenFunctions<P> = {
-  [K in keyof P]: K extends // React internals — never wrap
-  | 'key'
-    | 'ref'
-    | 'children'
-    // Accessibility / test identifiers
-    | 'testID'
-    | 'nativeID'
-    | 'accessibilityLabel'
-    // FlatList / SectionList render props & callbacks
-    | 'keyExtractor'
-    | 'getItem'
-    | 'getItemCount'
-    | 'getItemLayout'
-    | 'ListHeaderComponent'
-    | 'ListFooterComponent'
-    | 'ListEmptyComponent'
-    | 'ItemSeparatorComponent'
-    | 'SectionSeparatorComponent'
-    | 'CellRendererComponent'
-    // Navigation
-    | 'component'
-    | 'getComponent'
+  [K in keyof P]: K extends 'children'
+    ? P[K] | _ChildrenFnForTokens
+    : K extends  // React internals — never wrap
+        | 'key'
+        | 'ref'
+        // Accessibility / test identifiers
+        | 'testID'
+        | 'nativeID'
+        | 'accessibilityLabel'
+        // FlatList / SectionList render props & callbacks
+        | 'keyExtractor'
+        | 'getItem'
+        | 'getItemCount'
+        | 'getItemLayout'
+        | 'ListHeaderComponent'
+        | 'ListFooterComponent'
+        | 'ListEmptyComponent'
+        | 'ItemSeparatorComponent'
+        | 'SectionSeparatorComponent'
+        | 'CellRendererComponent'
+        // Navigation
+        | 'component'
+        | 'getComponent'
     ? P[K]
     : K extends string
     ? K extends `on${string}`
@@ -83,7 +90,16 @@ type _WithTokenFunctions<P> = {
       : K extends 'style' | `${string}Style` | `${string}style`
       ? _StylePropHasFn<P[K]> extends true
         ? P[K]
-        : P[K] | _StyleFnForStyle | ReadonlyArray<Record<string, any> | _StyleFnForStyle | false | null | undefined>
+        :
+            | P[K]
+            | _StyleFnForStyle
+            | ReadonlyArray<
+                | Record<string, any>
+                | _StyleFnForStyle
+                | false
+                | null
+                | undefined
+              >
       : P[K] | ((_tokens: _StyleFnTokens) => NonNullable<P[K]>)
     : P[K];
 };

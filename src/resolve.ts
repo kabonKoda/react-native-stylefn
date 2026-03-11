@@ -29,6 +29,34 @@ export function __resolveStyle(value: unknown): unknown {
 }
 
 /**
+ * Resolves a children value at render time.
+ * - If it's a function, calls it with the current token store.
+ * - Otherwise returns it as-is.
+ *
+ * This is specifically for the render-children pattern where children
+ * is a function receiving tokens. Unlike __resolveProp, this is used
+ * exclusively for children (both inline JSX children and the `children` prop).
+ *
+ * Injected automatically by the Babel plugin into JSX children
+ * that contain arrow/function expressions.
+ *
+ * @example
+ * ```tsx
+ * // Before (user code):
+ * <Card>{(t) => <Text style={{ color: t.colors.text }}>Hello</Text>}</Card>
+ *
+ * // After (babel-transformed):
+ * <Card>{__resolveChildren((t) => <Text style={{ color: t.colors.text }}>Hello</Text>)}</Card>
+ * ```
+ */
+export function __resolveChildren(value: unknown): unknown {
+  if (typeof value === 'function') {
+    return value(getTokenStore());
+  }
+  return value;
+}
+
+/**
  * Resolves a single prop value at render time.
  * - If it's a function, calls it with the current token store.
  * - Otherwise returns it as-is.

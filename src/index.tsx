@@ -34,6 +34,7 @@ export type {
   UseThemeReturn,
   RNStyle,
   PropFunction,
+  ChildrenFunction,
 } from './types';
 
 // Config utilities (for advanced usage)
@@ -82,3 +83,6 @@ export { __resolveStyle } from './resolve';
 
 // Prop resolver (used by Babel plugin for non-style token props)
 export { __resolveProp } from './resolve';
+
+// Children resolver (used by Babel plugin for function children / render children pattern)
+export { __resolveChildren } from './resolve';

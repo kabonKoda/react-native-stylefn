@@ -16,6 +16,23 @@
  * automatically accept token functions `(tokens: StyleTokens) => T` in
  * addition to their declared type `T`.
  *
+ * ## Children as Functions (render children pattern)
+ *
+ * Components also support the render-children pattern where children is a
+ * function receiving tokens. The Babel plugin wraps function children with
+ * `__resolveChildren()` at compile time.
+ *
+ * @example
+ * ```tsx
+ * <View>
+ *   {(t) => (
+ *     <Text style={{ color: t.colors.text }}>
+ *       {t.dark ? 'Dark Mode' : 'Light Mode'}
+ *     </Text>
+ *   )}
+ * </View>
+ * ```
+ *
  * This means components can declare plain types:
  *
  * @example
