@@ -118,7 +118,11 @@ module.exports = {
       'elevation-medium': 'var(--shadow-4)',
       'elevation-high': 'var(--shadow-8)',
     },
-    extend: {},
+    extend: {
+      borderRadius: {
+        '3xl': 60
+      }
+    },
   },
   darkMode: 'system',
 };

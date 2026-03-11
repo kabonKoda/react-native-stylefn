@@ -242,14 +242,20 @@ function resolveRgbFunctions(value: string): string {
 
 /**
  * Simple arithmetic evaluator for calc() expressions.
- * Supports +, -, *, / operators, parentheses, and px units.
+ * Supports +, -, *, / operators, parentheses, px and rem units.
  * Plain numbers are treated as unitless.
+ *
+ * @param expression - The calc expression string
+ * @param inlineRem - Base pixel value for rem→px conversion (default 16)
  */
-function evaluateSimpleCalc(expression: string): number {
+function evaluateSimpleCalc(expression: string, inlineRem: number = 16): number {
   // Strip outer calc() if present
   let expr = expression.trim();
   const calcMatch = expr.match(/^calc\((.+)\)$/i);
   if (calcMatch) expr = calcMatch[1]!.trim();
+
+  // Convert rem units to px before tokenizing: e.g. "0.625rem" → "10" (when inlineRem=16)
+  expr = expr.replace(/(\d+\.?\d*)rem/g, (_, num) => String(parseFloat(num) * inlineRem));
 
   // Remove 'px' units
   expr = expr.replace(/(\d+\.?\d*)px/g, '$1');
@@ -439,12 +445,17 @@ export function resolveColorExpression(
  *
  * Steps:
  * 1. Resolve all var() references
- * 2. Evaluate calc() if present
+ * 2. Evaluate calc() if present (with rem support)
  * 3. Parse as number
+ *
+ * @param value - The expression string or number
+ * @param vars - CSS variable map for var() resolution
+ * @param inlineRem - Base pixel value for rem→px conversion (default 16)
  */
 export function resolveNumericExpression(
   value: string | number,
-  vars: Record<string, string>
+  vars: Record<string, string>,
+  inlineRem: number = 16
 ): number {
   if (typeof value === 'number') return value;
   if (!value || typeof value !== 'string') return 0;
@@ -454,7 +465,13 @@ export function resolveNumericExpression(
 
   // Step 2: Evaluate calc()
   if (resolved.includes('calc(')) {
-    return evaluateSimpleCalc(resolved);
+    return evaluateSimpleCalc(resolved, inlineRem);
+  }
+
+  // Step 2b: Handle standalone rem values (e.g. "0.625rem" without calc)
+  const remMatch = resolved.trim().match(/^(-?\d+\.?\d*)rem$/);
+  if (remMatch) {
+    return parseFloat(remMatch[1]!) * inlineRem;
   }
 
   // Step 3: Parse as number
@@ -477,10 +494,15 @@ export function resolveShadowExpression(
 /**
  * Resolve a CSS expression to its final value (auto-detect type).
  * Returns string or number depending on context.
+ *
+ * @param value - The expression string or number
+ * @param vars - CSS variable map for var() resolution
+ * @param inlineRem - Base pixel value for rem→px conversion (default 16)
  */
 export function resolveCssExpression(
   value: string | number,
-  vars: Record<string, string>
+  vars: Record<string, string>,
+  inlineRem: number = 16
 ): string | number {
   if (typeof value === 'number') return value;
   if (!value || typeof value !== 'string') return value;
@@ -496,7 +518,13 @@ export function resolveCssExpression(
     resolved = resolveRgbFunctions(resolved);
   }
   if (resolved.includes('calc(')) {
-    return evaluateSimpleCalc(resolved);
+    return evaluateSimpleCalc(resolved, inlineRem);
+  }
+
+  // Step 2b: Handle standalone rem values (e.g. "0.625rem" without calc)
+  const remMatch = resolved.trim().match(/^(-?\d+\.?\d*)rem$/);
+  if (remMatch) {
+    return parseFloat(remMatch[1]!) * inlineRem;
   }
 
   // Step 3: Try to parse as number if it looks numeric
@@ -547,10 +575,15 @@ export function flattenColors(
 
 /**
  * Resolve all CSS expressions in a numeric theme map (spacing, fontSize, etc.).
+ *
+ * @param map - The theme map to resolve
+ * @param vars - CSS variable map for var() resolution
+ * @param inlineRem - Base pixel value for rem→px conversion (default 16)
  */
 export function resolveNumericMap(
   map: Record<string, number | string> | undefined,
-  vars: Record<string, string>
+  vars: Record<string, string>,
+  inlineRem: number = 16
 ): Record<string, number> {
   if (!map) return {};
 
@@ -559,7 +592,7 @@ export function resolveNumericMap(
     if (typeof value === 'number') {
       result[key] = value;
     } else if (typeof value === 'string') {
-      result[key] = resolveNumericExpression(value, vars);
+      result[key] = resolveNumericExpression(value, vars, inlineRem);
     }
   }
   return result;

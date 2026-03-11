@@ -72,8 +72,8 @@ export { applyPatch, isPatched } from './patch';
 // StyleSheet.create replacement with full style function support
 export { create } from './create';
 
-// Viewport unit helpers — pass '50vw' / '100vh' strings or use these functions
-export { vh, vw, calc } from './units';
+// Unit helpers — pass '50vw' / '100vh' / '0.625rem' strings or use these functions
+export { vh, vw, rem, calc } from './units';
 
 // Style resolver (used by Babel plugin at compile time)
 export { __resolveStyle } from './resolve';

@@ -74,8 +74,9 @@ describe('resolveTheme', () => {
     });
     expect(theme.colors.primary).toBe('#ff0000');
     expect(theme.colors.custom).toBe('#00ff00');
-    // Other defaults preserved
-    expect(theme.colors.secondary).toBe('#8b5cf6');
+    // Top-level theme sections REPLACE defaults (Tailwind behavior),
+    // so secondary is no longer present
+    expect(theme.colors.secondary).toBeUndefined();
   });
 
   it('applies extend additively', () => {

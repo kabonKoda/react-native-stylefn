@@ -36,6 +36,9 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
   const theme: ThemeConfig = resolveTheme(config.theme);
   const dark = colorScheme === 'dark';
 
+  // Get the inlineRem value from CSS vars (set by withStyleFn in metro.config.js)
+  const inlineRem = cssVars.inlineRem ?? 16;
+
   // Get the raw CSS variables map for the current color scheme (for var() resolution)
   const rawVars = getRawVarsForScheme(cssVars, colorScheme);
 
@@ -43,11 +46,11 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
   const lightVars = { ...defaultCSSVariables.light, ...cssVars.light };
   const darkVars = { ...defaultCSSVariables.dark, ...cssVars.dark };
 
-  // Resolve theme values — CSS expressions are evaluated here
-  const resolvedSpacing = resolveNumericMap(theme.spacing, rawVars);
-  const resolvedFontSize = resolveNumericMap(theme.fontSize, rawVars);
-  const resolvedBorderRadius = resolveNumericMap(theme.borderRadius, rawVars);
-  const resolvedOpacity = resolveNumericMap(theme.opacity, rawVars);
+  // Resolve theme values — CSS expressions are evaluated here (with rem support)
+  const resolvedSpacing = resolveNumericMap(theme.spacing, rawVars, inlineRem);
+  const resolvedFontSize = resolveNumericMap(theme.fontSize, rawVars, inlineRem);
+  const resolvedBorderRadius = resolveNumericMap(theme.borderRadius, rawVars, inlineRem);
+  const resolvedOpacity = resolveNumericMap(theme.opacity, rawVars, inlineRem);
 
   // Resolve colors — flatten nested objects and evaluate hsl()/var()
   const resolvedThemeColors = resolveColorMap(theme.colors, rawVars);
@@ -64,7 +67,7 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
 
   // Resolve border widths if present
   const resolvedBorderWidth = theme.borderWidth
-    ? resolveNumericMap(theme.borderWidth, rawVars)
+    ? resolveNumericMap(theme.borderWidth, rawVars, inlineRem)
     : undefined;
 
   return {
@@ -103,7 +106,9 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
         height: screenHeight,
         scale: screenScale,
         fontScale,
-      }),
+      }, inlineRem),
+    rem: (v: number) => v * inlineRem,
+    inlineRem,
   };
 }
 

@@ -14,4 +14,5 @@ const bobConfig = getConfig(baseConfig, {
 module.exports = withStyleFn(bobConfig, {
   input: './global.css',
   config: '../rn-stylefn.config.js',
+  // inlineRem: 16, // Base pixel value for rem→px conversion (default 16, so 1rem = 16px)
 });

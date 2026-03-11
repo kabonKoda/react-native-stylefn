@@ -14,6 +14,8 @@ const fallbackColors: Record<string, string> = {
 
 const fallbackScreen = { width: 375, height: 812, scale: 2, fontScale: 1 };
 
+const DEFAULT_INLINE_REM = 16;
+
 const fallbackTokens: StyleTokens = {
   theme: {
     spacing: defaultTheme.spacing,
@@ -44,7 +46,9 @@ const fallbackTokens: StyleTokens = {
   highContrast: false,
   vw: (v: number) => (v / 100) * fallbackScreen.width,
   vh: (v: number) => (v / 100) * fallbackScreen.height,
-  calc: (expr: string) => evaluateCalc(expr, fallbackScreen),
+  calc: (expr: string) => evaluateCalc(expr, fallbackScreen, DEFAULT_INLINE_REM),
+  rem: (v: number) => v * DEFAULT_INLINE_REM,
+  inlineRem: DEFAULT_INLINE_REM,
 };
 
 /**

@@ -120,6 +120,8 @@ export interface CSSVariables {
     light: Record<string, string>;
     dark: Record<string, string>;
   };
+  /** Base pixel value for rem→px conversion (default 16). Set via withStyleFn({ inlineRem }) in metro.config.js. */
+  inlineRem?: number;
 }
 
 /**
@@ -282,11 +284,26 @@ export interface StyleTokens {
   vh: (value: number) => number;
 
   /**
-   * Evaluate a CSS-like calc expression with px, vh, vw units.
+   * Evaluate a CSS-like calc expression with px, vh, vw, rem units.
    * Supports +, -, *, / and parentheses.
    * @example `t.calc('100vw - 32px')` → screen width minus 32 pixels
+   * @example `t.calc('2rem + 4px')` → 36 (when inlineRem = 16)
    */
   calc: (expression: string) => number;
+
+  /**
+   * Convert a rem value to pixels using the configured inlineRem base.
+   * Default base is 16 (so 1rem = 16px) unless overridden via
+   * withStyleFn({ inlineRem }) in metro.config.js.
+   * @example `t.rem(1)` → 16 (default), `t.rem(0.625)` → 10
+   */
+  rem: (value: number) => number;
+
+  /**
+   * The base pixel value used for rem→px conversion.
+   * Configured via withStyleFn({ inlineRem }) in metro.config.js (default 16).
+   */
+  inlineRem: number;
 }
 
 /**

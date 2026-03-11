@@ -39,8 +39,14 @@ function deepMerge(
 /**
  * Resolves the full theme by merging:
  * 1. Built-in defaults
- * 2. User's theme overrides
- * 3. User's theme.extend (additive merge on top)
+ * 2. User's theme overrides (section-level REPLACE — like Tailwind)
+ * 3. User's theme.extend (key-level deep merge — additive)
+ *
+ * Behavior:
+ * - `theme.spacing: { 1: 8 }` → **replaces** the entire default spacing
+ *   (you lose all default keys and only have `1: 8`)
+ * - `theme.extend.spacing: { 16: 64 }` → **adds** `16: 64` to the existing spacing
+ *   (all defaults + any top-level overrides are preserved)
  */
 export function resolveTheme(
   userTheme?: Partial<ThemeConfig>
@@ -51,21 +57,30 @@ export function resolveTheme(
 
   const { extend, ...overrides } = userTheme;
 
-  // Merge user overrides onto defaults
-  let merged = deepMerge(
-    defaultTheme as unknown as Record<string, unknown>,
-    overrides as unknown as Record<string, unknown>
-  ) as unknown as ThemeConfig;
+  // Step 1: Start with defaults, then REPLACE any sections the user explicitly provided.
+  // This is a shallow merge at the section level (like Tailwind's theme override behavior).
+  // If the user provides `theme.spacing`, it completely replaces `defaultTheme.spacing`.
+  const merged: Record<string, unknown> = { ...defaultTheme as unknown as Record<string, unknown> };
 
-  // Apply extend (additive on top of the already-merged theme)
+  for (const key in overrides) {
+    if (Object.prototype.hasOwnProperty.call(overrides, key)) {
+      const val = (overrides as Record<string, unknown>)[key];
+      if (val !== undefined) {
+        merged[key] = val; // Replace the entire section
+      }
+    }
+  }
+
+  // Step 2: Apply extend (additive deep merge on top of the already-merged theme).
+  // Keys in extend are merged INTO the existing sections, not replacing them.
   if (extend) {
-    merged = deepMerge(
-      merged as unknown as Record<string, unknown>,
+    return deepMerge(
+      merged,
       extend as unknown as Record<string, unknown>
     ) as unknown as ThemeConfig;
   }
 
-  return merged;
+  return merged as unknown as ThemeConfig;
 }
 
 /**

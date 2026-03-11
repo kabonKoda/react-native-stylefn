@@ -87,3 +87,4 @@ nitrogen/
 
 # react-native-stylefn generated
 stylefn.d.ts
+css-vars.js

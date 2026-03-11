@@ -243,12 +243,14 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
  * @param {object} options
  * @param {string} [options.input='./global.css'] - Path to your CSS file (relative to project root)
  * @param {string} [options.config='./rn-stylefn.config.js'] - Path to your config file (relative to project root)
+ * @param {number} [options.inlineRem=16] - Base pixel value for rem→px conversion (e.g. 16 means 1rem = 16px)
  * @returns {object} Updated Metro config
  */
 function withStyleFn(config, options = {}) {
   const projectRoot = config.projectRoot || process.cwd();
   const cssInput = options.input || './global.css';
   const cssPath = path.resolve(projectRoot, cssInput);
+  const inlineRem = typeof options.inlineRem === 'number' ? options.inlineRem : 16;
 
   // Locate the user's config file (rn-stylefn.config.js)
   const configInput = options.config || './rn-stylefn.config.js';
@@ -300,6 +302,33 @@ function withStyleFn(config, options = {}) {
   }
   fs.mkdirSync(libDir, { recursive: true });
 
+  // Inline-convert rem values in raw CSS variable strings to px numbers.
+  // e.g. "0.625rem" → "10" when inlineRem=16, so downstream calc() works correctly.
+  function inlineRemValues(vars) {
+    const result = {};
+    for (const [key, value] of Object.entries(vars)) {
+      if (typeof value === 'string') {
+        result[key] = value.replace(
+          /(\d+\.?\d*)rem/g,
+          (_, num) => String(parseFloat(num) * inlineRem)
+        );
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+
+  if (parsedCss.rawVars) {
+    parsedCss.rawVars.light = inlineRemValues(parsedCss.rawVars.light);
+    parsedCss.rawVars.dark = inlineRemValues(parsedCss.rawVars.dark);
+  }
+  parsedCss.light = inlineRemValues(parsedCss.light);
+  parsedCss.dark = inlineRemValues(parsedCss.dark);
+
+  // Attach the inlineRem value so the runtime can use it for calc()/rem() support
+  parsedCss.inlineRem = inlineRem;
+
   const cssVarsFile = path.join(libDir, 'css-vars.js');
   fs.writeFileSync(
     cssVarsFile,
@@ -308,6 +337,10 @@ function withStyleFn(config, options = {}) {
       null,
       2
     )};\n`
+  );
+
+  console.log(
+    `[react-native-stylefn] ✓ inlineRem = ${inlineRem}px (1rem = ${inlineRem}px)`
   );
 
   // =========================================================================

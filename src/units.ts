@@ -1,8 +1,8 @@
 import { getTokenStore } from './store';
 import type { ScreenInfo } from './types';
 
-/** Matches strings like "50vw", "100vh", "33.5vw", etc. */
-const VIEWPORT_UNIT_RE = /^(-?\d+\.?\d*)(vh|vw)$/;
+/** Matches strings like "50vw", "100vh", "33.5vw", "0.625rem", etc. */
+const CSS_UNIT_RE = /^(-?\d+\.?\d*)(vh|vw|rem)$/;
 
 /**
  * Converts a viewport-width value (0–100) to pixels based on the current screen width.
@@ -31,6 +31,21 @@ export function vh(value: number): number {
 }
 
 /**
+ * Converts a rem value to pixels using the configured inlineRem base.
+ * Default base is 16 (so 1rem = 16px) unless overridden via
+ * withStyleFn({ inlineRem }) in metro.config.js.
+ *
+ * @example
+ * ```tsx
+ * import { rem } from 'react-native-stylefn';
+ * <View style={{ padding: rem(0.625) }} />  // → 10 (when inlineRem = 16)
+ * ```
+ */
+export function rem(value: number): number {
+  return value * getTokenStore().inlineRem;
+}
+
+/**
  * Parses a single string value that may contain a viewport unit.
  * Returns the converted pixel number, or the original value if it doesn't match.
  *
@@ -43,7 +58,7 @@ export function vh(value: number): number {
 export function parseViewportValue(value: unknown): unknown {
   if (typeof value !== 'string') return value;
 
-  const match = VIEWPORT_UNIT_RE.exec(value);
+  const match = CSS_UNIT_RE.exec(value);
   if (!match) return value;
 
   const num = parseFloat(match[1]!);
@@ -52,6 +67,7 @@ export function parseViewportValue(value: unknown): unknown {
 
   if (unit === 'vw') return (num / 100) * store.screen.width;
   if (unit === 'vh') return (num / 100) * store.screen.height;
+  if (unit === 'rem') return num * store.inlineRem;
 
   return value;
 }
@@ -96,13 +112,20 @@ export function resolveViewportUnits<T>(style: T): T {
 
 /**
  * Converts a value with a unit to pixels given screen dimensions.
+ *
+ * @param num - The numeric value
+ * @param unit - The CSS unit (px, vh, vw, rem)
+ * @param screen - Current screen dimensions
+ * @param inlineRem - Base pixel value for rem→px conversion (default 16)
  */
-function unitToPixels(num: number, unit: string | undefined, screen: ScreenInfo): number {
+function unitToPixels(num: number, unit: string | undefined, screen: ScreenInfo, inlineRem: number = 16): number {
   switch (unit) {
     case 'vh':
       return (num / 100) * screen.height;
     case 'vw':
       return (num / 100) * screen.width;
+    case 'rem':
+      return num * inlineRem;
     case 'px':
     default:
       return num;
@@ -115,7 +138,7 @@ function unitToPixels(num: number, unit: string | undefined, screen: ScreenInfo)
  */
 type Token = { type: 'number'; value: number } | { type: 'op'; value: string };
 
-function tokenize(expr: string, screen: ScreenInfo): Token[] {
+function tokenize(expr: string, screen: ScreenInfo, inlineRem: number = 16): Token[] {
   const tokens: Token[] = [];
   // Trim whitespace
   let input = expr.trim();
@@ -161,11 +184,11 @@ function tokenize(expr: string, screen: ScreenInfo): Token[] {
     }
 
     // Try to parse a number (with optional unit)
-    const numMatch = input.slice(i).match(/^(-?\d+\.?\d*)\s*(px|vh|vw)?/);
+    const numMatch = input.slice(i).match(/^(-?\d+\.?\d*)\s*(px|vh|vw|rem)?/);
     if (numMatch) {
       const num = parseFloat(numMatch[1]!);
       const unit = numMatch[2];
-      tokens.push({ type: 'number', value: unitToPixels(num, unit, screen) });
+      tokens.push({ type: 'number', value: unitToPixels(num, unit, screen, inlineRem) });
       i += numMatch[0]!.length;
       continue;
     }
@@ -285,16 +308,20 @@ class ExprParser {
  * ```
  */
 export function calc(expression: string): number {
-  const screen = getTokenStore().screen;
-  return evaluateCalc(expression, screen);
+  const store = getTokenStore();
+  return evaluateCalc(expression, store.screen, store.inlineRem);
 }
 
 /**
  * Internal calc evaluator that accepts screen info directly.
  * Used by the token-bound version to capture the correct screen dimensions.
+ *
+ * @param expression - The calc expression string
+ * @param screen - Current screen dimensions
+ * @param inlineRem - Base pixel value for rem→px conversion (default 16)
  */
-export function evaluateCalc(expression: string, screen: ScreenInfo): number {
-  const tokens = tokenize(expression, screen);
+export function evaluateCalc(expression: string, screen: ScreenInfo, inlineRem: number = 16): number {
+  const tokens = tokenize(expression, screen, inlineRem);
   const parser = new ExprParser(tokens);
   return parser.parse();
 }
