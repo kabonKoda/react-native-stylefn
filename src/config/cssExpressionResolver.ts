@@ -1,0 +1,649 @@
+/**
+ * CSS Expression Resolver
+ *
+ * Resolves CSS variable references and expressions in theme config values.
+ *
+ * Supports:
+ * - var(--name) / var(--name, fallback)
+ * - hsl(h s% l%) / hsl(h, s%, l%) / hsl(h s% l% / alpha)
+ * - rgb(r g b) / rgb(r, g, b) / rgb(r g b / alpha)
+ * - calc(expression) with +, -, *, / and px units
+ * - Nested: hsl(var(--primary)), calc(var(--radius) - 2px)
+ */
+
+// =============================================================================
+// var() resolution
+// =============================================================================
+
+/**
+ * Resolve all var(--name) and var(--name, fallback) references in a string.
+ * Iterates to support nested var() references (up to 10 levels).
+ */
+function resolveVarReferences(
+  value: string,
+  vars: Record<string, string>
+): string {
+  let result = value;
+  let maxIterations = 10;
+
+  while (maxIterations-- > 0 && result.includes('var(')) {
+    const newResult = result.replace(
+      /var\(\s*--([a-zA-Z0-9_-]+)\s*(?:,\s*([^)]*))?\)/g,
+      (_match, name: string, fallback?: string) => {
+        const resolved = vars[name];
+        if (resolved !== undefined) return resolved;
+        if (fallback !== undefined) return fallback.trim();
+        return '';
+      }
+    );
+    if (newResult === result) break;
+    result = newResult;
+  }
+
+  return result;
+}
+
+// =============================================================================
+// HSL / RGB → hex conversion
+// =============================================================================
+
+/**
+ * Clamp a number between min and max.
+ */
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(Math.max(n, min), max);
+}
+
+/**
+ * Convert a single channel (0–1) to a two-digit hex string.
+ */
+function toHex2(n: number): string {
+  const hex = clamp(Math.round(n * 255), 0, 255)
+    .toString(16)
+    .padStart(2, '0');
+  return hex;
+}
+
+/**
+ * Convert HSL values to a hex color string.
+ *
+ * @param h Hue (0–360)
+ * @param s Saturation (0–100)
+ * @param l Lightness (0–100)
+ * @param a Alpha (0–1), optional
+ */
+function hslToHex(h: number, s: number, l: number, a?: number): string {
+  h = ((h % 360) + 360) % 360; // normalize
+  const sn = clamp(s, 0, 100) / 100;
+  const ln = clamp(l, 0, 100) / 100;
+
+  const c = (1 - Math.abs(2 * ln - 1)) * sn;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = ln - c / 2;
+
+  let r = 0,
+    g = 0,
+    b = 0;
+
+  if (h < 60) {
+    r = c;
+    g = x;
+  } else if (h < 120) {
+    r = x;
+    g = c;
+  } else if (h < 180) {
+    g = c;
+    b = x;
+  } else if (h < 240) {
+    g = x;
+    b = c;
+  } else if (h < 300) {
+    r = x;
+    b = c;
+  } else {
+    r = c;
+    b = x;
+  }
+
+  const hex = `#${toHex2(r + m)}${toHex2(g + m)}${toHex2(b + m)}`;
+
+  if (a !== undefined && a < 1) {
+    return `${hex}${toHex2(a)}`;
+  }
+
+  return hex;
+}
+
+/**
+ * Parse the inside of an hsl() function call.
+ * Handles both comma-separated and space-separated syntaxes, with optional alpha.
+ *
+ * Examples:
+ *   "220, 13%, 91%"
+ *   "220 13% 91%"
+ *   "220 13% 91% / 0.5"
+ *   "220, 13%, 91%, 0.5"
+ */
+function parseHslArgs(args: string): string | null {
+  const trimmed = args.trim();
+
+  let h: number, s: number, l: number;
+  let a: number | undefined;
+
+  if (trimmed.includes(',')) {
+    // Comma-separated: hsl(220, 13%, 91%) or hsl(220, 13%, 91%, 0.5)
+    const parts = trimmed.split(',').map((p) => p.trim());
+    if (parts.length < 3) return null;
+    h = parseFloat(parts[0]!);
+    s = parseFloat(parts[1]!.replace('%', ''));
+    l = parseFloat(parts[2]!.replace('%', ''));
+    if (parts.length >= 4) {
+      a = parseFloat(parts[3]!.replace('%', ''));
+      if (a > 1) a = a / 100; // handle percentage alpha
+    }
+  } else {
+    // Space-separated: hsl(220 13% 91%) or hsl(220 13% 91% / 0.5)
+    const slashIdx = trimmed.indexOf('/');
+    let hslPart: string;
+    if (slashIdx !== -1) {
+      hslPart = trimmed.slice(0, slashIdx).trim();
+      const alphaPart = trimmed.slice(slashIdx + 1).trim();
+      a = parseFloat(alphaPart.replace('%', ''));
+      if (a > 1) a = a / 100;
+    } else {
+      hslPart = trimmed;
+    }
+
+    const parts = hslPart.split(/\s+/);
+    if (parts.length < 3) return null;
+    h = parseFloat(parts[0]!);
+    s = parseFloat(parts[1]!.replace('%', ''));
+    l = parseFloat(parts[2]!.replace('%', ''));
+  }
+
+  if (isNaN(h) || isNaN(s) || isNaN(l)) return null;
+
+  return hslToHex(h, s, l, a);
+}
+
+/**
+ * Resolve all hsl() and hsla() function calls in a string to hex colors.
+ */
+function resolveHslFunctions(value: string): string {
+  return value.replace(/hsla?\(([^)]+)\)/gi, (_match, args: string) => {
+    const hex = parseHslArgs(args);
+    return hex ?? _match; // return original if can't parse
+  });
+}
+
+/**
+ * Parse the inside of an rgb() function call.
+ *
+ * Examples:
+ *   "0, 0, 0"
+ *   "0 0 0"
+ *   "0 0 0 / 0.05"
+ *   "0, 0, 0, 0.05"
+ */
+function parseRgbArgs(args: string): string | null {
+  const trimmed = args.trim();
+
+  let r: number, g: number, b: number;
+  let a: number | undefined;
+
+  if (trimmed.includes(',')) {
+    const parts = trimmed.split(',').map((p) => p.trim());
+    if (parts.length < 3) return null;
+    r = parseFloat(parts[0]!);
+    g = parseFloat(parts[1]!);
+    b = parseFloat(parts[2]!);
+    if (parts.length >= 4) a = parseFloat(parts[3]!);
+  } else {
+    const slashIdx = trimmed.indexOf('/');
+    let rgbPart: string;
+    if (slashIdx !== -1) {
+      rgbPart = trimmed.slice(0, slashIdx).trim();
+      a = parseFloat(trimmed.slice(slashIdx + 1).trim());
+    } else {
+      rgbPart = trimmed;
+    }
+    const parts = rgbPart.split(/\s+/);
+    if (parts.length < 3) return null;
+    r = parseFloat(parts[0]!);
+    g = parseFloat(parts[1]!);
+    b = parseFloat(parts[2]!);
+  }
+
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
+
+  // Normalize as 0-255 range
+  const hex = `#${toHex2(r / 255)}${toHex2(g / 255)}${toHex2(b / 255)}`;
+
+  if (a !== undefined && a < 1) {
+    return `${hex}${toHex2(a)}`;
+  }
+
+  return hex;
+}
+
+/**
+ * Resolve all rgb() and rgba() function calls in a string to hex colors.
+ */
+function resolveRgbFunctions(value: string): string {
+  return value.replace(/rgba?\(([^)]+)\)/gi, (_match, args: string) => {
+    const hex = parseRgbArgs(args);
+    return hex ?? _match;
+  });
+}
+
+// =============================================================================
+// calc() evaluation
+// =============================================================================
+
+/**
+ * Simple arithmetic evaluator for calc() expressions.
+ * Supports +, -, *, / operators, parentheses, and px units.
+ * Plain numbers are treated as unitless.
+ */
+function evaluateSimpleCalc(expression: string): number {
+  // Strip outer calc() if present
+  let expr = expression.trim();
+  const calcMatch = expr.match(/^calc\((.+)\)$/i);
+  if (calcMatch) expr = calcMatch[1]!.trim();
+
+  // Remove 'px' units
+  expr = expr.replace(/(\d+\.?\d*)px/g, '$1');
+
+  // Tokenize
+  const tokens = tokenizeCalc(expr);
+
+  // Parse
+  const parser = new CalcParser(tokens);
+  return parser.parse();
+}
+
+type CalcToken =
+  | { type: 'number'; value: number }
+  | { type: 'op'; value: string };
+
+function tokenizeCalc(expr: string): CalcToken[] {
+  const tokens: CalcToken[] = [];
+  let i = 0;
+
+  while (i < expr.length) {
+    const ch = expr[i]!;
+
+    if (ch === ' ' || ch === '\t') {
+      i++;
+      continue;
+    }
+
+    if (ch === '(' || ch === ')') {
+      tokens.push({ type: 'op', value: ch });
+      i++;
+      continue;
+    }
+
+    if (ch === '+' || ch === '*' || ch === '/') {
+      tokens.push({ type: 'op', value: ch });
+      i++;
+      continue;
+    }
+
+    if (ch === '-') {
+      const prev = tokens[tokens.length - 1];
+      const isNegative = !prev || (prev.type === 'op' && prev.value !== ')');
+      if (!isNegative) {
+        tokens.push({ type: 'op', value: '-' });
+        i++;
+        continue;
+      }
+    }
+
+    // Try to parse a number
+    const numMatch = expr.slice(i).match(/^(-?\d+\.?\d*)/);
+    if (numMatch) {
+      tokens.push({ type: 'number', value: parseFloat(numMatch[1]!) });
+      i += numMatch[0]!.length;
+      continue;
+    }
+
+    i++;
+  }
+
+  return tokens;
+}
+
+class CalcParser {
+  private tokens: CalcToken[];
+  private pos = 0;
+
+  constructor(tokens: CalcToken[]) {
+    this.tokens = tokens;
+  }
+
+  parse(): number {
+    return this.expression();
+  }
+
+  private peek(): CalcToken | undefined {
+    return this.tokens[this.pos];
+  }
+
+  private consume(): CalcToken {
+    return this.tokens[this.pos++]!;
+  }
+
+  private expression(): number {
+    let left = this.term();
+    while (
+      this.peek()?.type === 'op' &&
+      (this.peek()!.value === '+' || this.peek()!.value === '-')
+    ) {
+      const op = this.consume().value;
+      const right = this.term();
+      left = op === '+' ? left + right : left - right;
+    }
+    return left;
+  }
+
+  private term(): number {
+    let left = this.factor();
+    while (
+      this.peek()?.type === 'op' &&
+      (this.peek()!.value === '*' || this.peek()!.value === '/')
+    ) {
+      const op = this.consume().value;
+      const right = this.factor();
+      left = op === '*' ? left * right : left / right;
+    }
+    return left;
+  }
+
+  private factor(): number {
+    const tok = this.peek();
+    if (!tok) return 0;
+
+    if (tok.type === 'op' && tok.value === '-') {
+      this.consume();
+      return -this.factor();
+    }
+
+    if (tok.type === 'op' && tok.value === '(') {
+      this.consume();
+      const result = this.expression();
+      if (this.peek()?.type === 'op' && this.peek()!.value === ')') {
+        this.consume();
+      }
+      return result;
+    }
+
+    if (tok.type === 'number') {
+      this.consume();
+      return tok.value;
+    }
+
+    return 0;
+  }
+}
+
+// =============================================================================
+// Public API — Context-aware resolvers
+// =============================================================================
+
+/**
+ * Check if a string contains any CSS expression (var, hsl, calc, etc.)
+ */
+export function containsCssExpression(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  return (
+    value.includes('var(') ||
+    value.includes('hsl(') ||
+    value.includes('hsla(') ||
+    value.includes('rgb(') ||
+    value.includes('rgba(') ||
+    value.includes('calc(')
+  );
+}
+
+/**
+ * Resolve a CSS expression string to a color value (hex string).
+ *
+ * Steps:
+ * 1. Resolve all var() references
+ * 2. Evaluate hsl/rgb functions to hex
+ * 3. Return the resolved color string
+ */
+export function resolveColorExpression(
+  value: string,
+  vars: Record<string, string>
+): string {
+  if (!value || typeof value !== 'string') return value;
+
+  // Step 1: Resolve var() references
+  let resolved = resolveVarReferences(value, vars);
+
+  // Step 2: Resolve color functions
+  if (resolved.includes('hsl') || resolved.includes('HSL')) {
+    resolved = resolveHslFunctions(resolved);
+  }
+  if (resolved.includes('rgb') || resolved.includes('RGB')) {
+    resolved = resolveRgbFunctions(resolved);
+  }
+
+  return resolved;
+}
+
+/**
+ * Resolve a CSS expression string to a numeric value.
+ *
+ * Steps:
+ * 1. Resolve all var() references
+ * 2. Evaluate calc() if present
+ * 3. Parse as number
+ */
+export function resolveNumericExpression(
+  value: string | number,
+  vars: Record<string, string>
+): number {
+  if (typeof value === 'number') return value;
+  if (!value || typeof value !== 'string') return 0;
+
+  // Step 1: Resolve var() references
+  let resolved = resolveVarReferences(value, vars);
+
+  // Step 2: Evaluate calc()
+  if (resolved.includes('calc(')) {
+    return evaluateSimpleCalc(resolved);
+  }
+
+  // Step 3: Parse as number
+  const num = parseFloat(resolved);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
+ * Resolve a CSS expression string to a shadow value (string).
+ * Only resolves var() references — leaves shadow syntax intact.
+ */
+export function resolveShadowExpression(
+  value: string,
+  vars: Record<string, string>
+): string {
+  if (!value || typeof value !== 'string') return value;
+  return resolveVarReferences(value, vars);
+}
+
+/**
+ * Resolve a CSS expression to its final value (auto-detect type).
+ * Returns string or number depending on context.
+ */
+export function resolveCssExpression(
+  value: string | number,
+  vars: Record<string, string>
+): string | number {
+  if (typeof value === 'number') return value;
+  if (!value || typeof value !== 'string') return value;
+
+  // Step 1: Resolve var() references
+  let resolved = resolveVarReferences(value, vars);
+
+  // Step 2: Check for function expressions
+  if (resolved.includes('hsl') || resolved.includes('HSL')) {
+    resolved = resolveHslFunctions(resolved);
+  }
+  if (resolved.includes('rgb') || resolved.includes('RGB')) {
+    resolved = resolveRgbFunctions(resolved);
+  }
+  if (resolved.includes('calc(')) {
+    return evaluateSimpleCalc(resolved);
+  }
+
+  // Step 3: Try to parse as number if it looks numeric
+  const trimmed = resolved.trim();
+  const num = parseFloat(trimmed);
+  if (!isNaN(num) && String(num) === trimmed) {
+    return num;
+  }
+
+  return resolved;
+}
+
+// =============================================================================
+// Theme-level resolution — walks an entire theme config
+// =============================================================================
+
+/**
+ * Flatten nested color objects (Tailwind convention).
+ *
+ * Converts:
+ *   { primary: { DEFAULT: 'blue', foreground: 'white' } }
+ * To:
+ *   { primary: 'blue', 'primary-foreground': 'white' }
+ */
+export function flattenColors(
+  colors: Record<string, string | Record<string, string>>
+): Record<string, string> {
+  const result: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(colors)) {
+    if (typeof value === 'string') {
+      result[key] = value;
+    } else if (value && typeof value === 'object') {
+      for (const [subKey, subValue] of Object.entries(value)) {
+        if (typeof subValue === 'string') {
+          if (subKey === 'DEFAULT') {
+            result[key] = subValue;
+          } else {
+            result[`${key}-${subKey}`] = subValue;
+          }
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Resolve all CSS expressions in a numeric theme map (spacing, fontSize, etc.).
+ */
+export function resolveNumericMap(
+  map: Record<string, number | string> | undefined,
+  vars: Record<string, string>
+): Record<string, number> {
+  if (!map) return {};
+
+  const result: Record<string, number> = {};
+  for (const [key, value] of Object.entries(map)) {
+    if (typeof value === 'number') {
+      result[key] = value;
+    } else if (typeof value === 'string') {
+      result[key] = resolveNumericExpression(value, vars);
+    }
+  }
+  return result;
+}
+
+/**
+ * Resolve all CSS expressions in a color map.
+ * Also flattens nested color objects.
+ */
+export function resolveColorMap(
+  colors: Record<string, string | Record<string, string>> | undefined,
+  vars: Record<string, string>
+): Record<string, string> {
+  if (!colors) return {};
+
+  // First flatten nested objects
+  const flat = flattenColors(colors);
+
+  // Then resolve CSS expressions
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(flat)) {
+    if (containsCssExpression(value)) {
+      result[key] = resolveColorExpression(value, vars);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Resolve all CSS expressions in a shadow map.
+ * Handles both string values and { boxShadow: string } objects.
+ * Strings are wrapped in { boxShadow: value } for RN compatibility.
+ */
+export function resolveShadowMap(
+  shadows: Record<string, string | object> | undefined,
+  vars: Record<string, string>
+): Record<string, object> {
+  if (!shadows) return {};
+
+  const result: Record<string, object> = {};
+  for (const [key, value] of Object.entries(shadows)) {
+    if (typeof value === 'string') {
+      const resolved = resolveShadowExpression(value, vars);
+      result[key] = { boxShadow: resolved };
+    } else if (value && typeof value === 'object') {
+      // Already an object — resolve any string values inside it
+      const obj = value as Record<string, unknown>;
+      const resolvedObj: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === 'string' && containsCssExpression(v)) {
+          resolvedObj[k] = resolveShadowExpression(v, vars);
+        } else {
+          resolvedObj[k] = v;
+        }
+      }
+      result[key] = resolvedObj;
+    }
+  }
+  return result;
+}
+
+/**
+ * Get the raw CSS variables map for a given color scheme.
+ * Falls back to constructing from color vars if rawVars is not available.
+ */
+export function getRawVarsForScheme(
+  cssVars: {
+    light: Record<string, string>;
+    dark: Record<string, string>;
+    rawVars?: { light: Record<string, string>; dark: Record<string, string> };
+  },
+  scheme: 'light' | 'dark'
+): Record<string, string> {
+  if (cssVars.rawVars) {
+    return scheme === 'light' ? cssVars.rawVars.light : cssVars.rawVars.dark;
+  }
+
+  // Backward compat: reconstruct from color vars (prefix with color-)
+  const colorVars = scheme === 'light' ? cssVars.light : cssVars.dark;
+  const raw: Record<string, string> = {};
+  for (const [key, value] of Object.entries(colorVars)) {
+    raw[`color-${key}`] = value;
+  }
+  return raw;
+}

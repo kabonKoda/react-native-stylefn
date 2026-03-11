@@ -1,5 +1,57 @@
 import type { ViewStyle, TextStyle, ImageStyle } from 'react-native';
 
+// =============================================================================
+// Theme Key Registry — known keys for TypeScript autocomplete
+//
+// Extend via module augmentation to add autocomplete for your custom keys:
+//
+//   declare module 'react-native-stylefn' {
+//     interface ThemeKeyRegistry {
+//       spacing: '0' | '1' | '2' | ... | 'myCustomKey';
+//       color: 'primary' | ... | 'my-brand';
+//     }
+//   }
+// =============================================================================
+
+/**
+ * Registry of known theme keys. Each property is a string union of key names
+ * that appear in the default theme or common configs.
+ *
+ * Users can extend this via module augmentation to get autocomplete for
+ * custom keys defined in their rn-stylefn.config.js.
+ */
+export interface ThemeKeyRegistry {
+  spacing: '0' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | '10' | '12';
+  fontSize: 'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl';
+  borderRadius: 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+  fontWeight: 'normal' | 'medium' | 'semibold' | 'bold';
+  opacity: '0' | '25' | '50' | '75' | '100';
+  shadow: 'sm' | 'md' | 'lg';
+  color:
+    | 'primary'
+    | 'secondary'
+    | 'danger'
+    | 'success'
+    | 'warning'
+    | 'background'
+    | 'surface'
+    | 'border'
+    | 'text'
+    | 'text-muted';
+  breakpoint: 'sm' | 'md' | 'lg' | 'xl';
+}
+
+/**
+ * Helper type: provides autocomplete for known keys K while allowing any string.
+ * The `& {}` trick widens string but preserves IDE autocompletion.
+ */
+type KnownKeys<K extends string, V> = { [P in K]: V } & Record<string, V>;
+
+/**
+ * A string type that shows autocomplete for K but accepts any string.
+ */
+type StringWithSuggestions<K extends string> = K | (string & {});
+
 /**
  * Theme configuration shape — mirrors Tailwind's design token system.
  */
@@ -21,14 +73,18 @@ export type FontWeightValue =
   | undefined;
 
 export interface ThemeConfig {
-  spacing: Record<string, number>;
-  fontSize: Record<string, number>;
-  borderRadius: Record<string, number>;
+  spacing: Record<string, number | string>;
+  fontSize: Record<string, number | string>;
+  borderRadius: Record<string, number | string>;
   fontWeight: Record<string, NonNullable<FontWeightValue>>;
-  opacity: Record<string, number>;
+  opacity: Record<string, number | string>;
   screens: Record<string, number>;
-  colors: Record<string, string>;
-  shadows?: Record<string, object>;
+  colors: Record<string, string | Record<string, string>>;
+  shadows?: Record<string, string | object>;
+  /** Tailwind-compatible alias for shadows */
+  boxShadow?: Record<string, string | object>;
+  /** Border width tokens (e.g., { hairline: 0.5 }) */
+  borderWidth?: Record<string, number | string>;
   extend?: Partial<Omit<ThemeConfig, 'extend'>>;
 }
 
@@ -44,14 +100,22 @@ export interface StyleFnConfig {
  * Parsed CSS variables from global.css.
  */
 export interface CSSVariables {
+  /** Color variables (--color-* prefix stripped) for backward compat with t.colors */
   light: Record<string, string>;
   dark: Record<string, string>;
+  /** ALL CSS custom properties (-- prefix stripped, full name preserved) for var() resolution */
+  rawVars?: {
+    light: Record<string, string>;
+    dark: Record<string, string>;
+  };
 }
 
 /**
- * Breakpoint name.
+ * Breakpoint name — shows autocomplete for default breakpoints while accepting any string.
  */
-export type BreakpointName = string;
+export type BreakpointName = StringWithSuggestions<
+  ThemeKeyRegistry['breakpoint']
+>;
 
 /**
  * Breakpoint object with up/down query methods.
@@ -133,19 +197,32 @@ export interface Insets {
  * The full token store shape injected into every style function.
  */
 export interface StyleTokens {
-  /** Full resolved theme object */
+  /**
+   * Full resolved theme object.
+   *
+   * Known keys provide autocomplete (e.g. `theme.borderRadius['lg']`).
+   * Custom keys from your config are also accessible as `theme.borderRadius['myKey']`.
+   *
+   * Extend `ThemeKeyRegistry` via module augmentation for custom key autocomplete.
+   */
   theme: {
-    spacing: Record<string, number>;
-    fontSize: Record<string, number>;
-    borderRadius: Record<string, number>;
-    fontWeight: Record<string, NonNullable<FontWeightValue>>;
-    colors: Record<string, string>;
-    shadows: Record<string, object>;
-    opacity: Record<string, number>;
+    spacing: KnownKeys<ThemeKeyRegistry['spacing'], number>;
+    fontSize: KnownKeys<ThemeKeyRegistry['fontSize'], number>;
+    borderRadius: KnownKeys<ThemeKeyRegistry['borderRadius'], number>;
+    fontWeight: KnownKeys<
+      ThemeKeyRegistry['fontWeight'],
+      NonNullable<FontWeightValue>
+    >;
+    colors: KnownKeys<ThemeKeyRegistry['color'], string>;
+    shadows: KnownKeys<ThemeKeyRegistry['shadow'], object>;
+    opacity: KnownKeys<ThemeKeyRegistry['opacity'], number>;
   };
 
-  /** Resolved color palette for the current color scheme (from CSS vars + theme) */
-  colors: Record<string, string>;
+  /**
+   * Resolved color palette for the current color scheme (from CSS vars + theme).
+   * Known color keys provide autocomplete.
+   */
+  colors: KnownKeys<ThemeKeyRegistry['color'], string>;
 
   /** Whether dark mode is currently active */
   dark: boolean;

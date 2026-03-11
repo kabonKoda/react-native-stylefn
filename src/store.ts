@@ -8,7 +8,7 @@ import { evaluateCalc } from './units';
  * These are replaced by real values once StyleProvider mounts.
  */
 const fallbackColors: Record<string, string> = {
-  ...defaultTheme.colors,
+  ...(defaultTheme.colors as Record<string, string>),
   ...defaultCSSVariables.light,
 };
 
@@ -23,14 +23,20 @@ const fallbackTokens: StyleTokens = {
     colors: fallbackColors,
     shadows: defaultTheme.shadows ?? {},
     opacity: defaultTheme.opacity,
-  },
-  colors: fallbackColors,
+  } as StyleTokens['theme'],
+  colors: fallbackColors as StyleTokens['colors'],
   dark: false,
   colorScheme: 'light',
   breakpoint: createBreakpointQuery(fallbackScreen.width, defaultTheme.screens),
   screen: fallbackScreen,
   orientation: { landscape: false, portrait: true },
-  platform: { ios: true, android: false, web: false, windows: false, macos: false },
+  platform: {
+    ios: true,
+    android: false,
+    web: false,
+    windows: false,
+    macos: false,
+  },
   insets: { top: 0, bottom: 0, left: 0, right: 0 },
   reducedMotion: false,
   fontScale: 1,

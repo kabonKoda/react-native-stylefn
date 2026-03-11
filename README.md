@@ -596,6 +596,62 @@ module.exports = {
 
 > **Auto-loaded:** `StyleProvider` automatically `require`s `rn-stylefn.config.js` from your project root — no manual import or prop needed. Just create the file and your tokens are available everywhere.
 
+#### CSS Variable Expressions in Config
+
+Theme values in `rn-stylefn.config.js` can reference CSS variables from `global.css` using standard CSS expression syntax. This enables a **Tailwind CSS-style** config where colors, sizes, and shadows are driven by CSS custom properties that change between light/dark mode:
+
+```js
+// rn-stylefn.config.js
+module.exports = {
+  theme: {
+    // var() — resolves CSS variable, then parses as number
+    borderRadius: {
+      sm: 'calc(var(--radius) - 4px)',   // → 4
+      md: 'calc(var(--radius) - 2px)',   // → 6
+      lg: 'var(--radius)',               // → 8
+    },
+
+    // hsl(var()) — resolves CSS variable, then converts HSL to hex
+    colors: {
+      border: 'hsl(var(--border))',           // → '#e8e9eb'
+      primary: {
+        DEFAULT: 'hsl(var(--primary))',       // → '#2662d9'
+        foreground: 'hsl(var(--primary-foreground))', // → '#f5f7fa'
+      },
+    },
+
+    // var() for shadows — resolves to boxShadow CSS string
+    // boxShadow is a Tailwind-compatible alias for shadows
+    boxShadow: {
+      sm: 'var(--shadow-1)',    // → { boxShadow: '0px 1px 2px ...' }
+      md: 'var(--shadow-4)',
+      lg: 'var(--shadow-8)',
+    },
+  },
+};
+```
+
+**Supported CSS expression syntax:**
+
+| Expression | Example | Resolves to |
+|------------|---------|-------------|
+| `var(--name)` | `'var(--radius)'` | Value from CSS variables |
+| `var(--name, fallback)` | `'var(--radius, 8)'` | Value with fallback |
+| `hsl(...)` | `'hsl(220 13% 91%)'` | Hex color string |
+| `hsl(var(--name))` | `'hsl(var(--primary))'` | HSL from CSS var → hex |
+| `calc(...)` | `'calc(var(--radius) - 2px)'` | Evaluated number |
+| `rgb(...)`/`rgba(...)` | `'rgb(59 130 246)'` | Hex color string |
+
+**Nested color objects** (Tailwind convention) are automatically flattened:
+```js
+primary: {
+  DEFAULT: 'hsl(var(--primary))',         // → t.theme.colors.primary
+  foreground: 'hsl(var(--primary-foreground))', // → t.theme.colors['primary-foreground']
+}
+```
+
+> **Color-scheme aware:** CSS variable expressions are resolved per color scheme — light mode uses `:root` variables, dark mode uses `.dark` variables. So `hsl(var(--primary))` resolves to different colors in light vs dark mode.
+
 If you need to pass config **programmatically** (e.g. from a remote source), you can still use the `config` prop:
 
 ```tsx
@@ -616,13 +672,13 @@ Now your custom tokens are available in every style function:
 
 ### Using `global.css`
 
-Create a `global.css` in your project root to define your **light/dark color palette**. These map to `t.colors.*` tokens:
+Create a `global.css` in your project root to define your **light/dark color palette** and **design tokens**. Two naming conventions are supported:
 
 ```css
 /* global.css */
 
 :root {
-  /* Light mode colors */
+  /* ---- Color palette (--color-* → t.colors.*) ---- */
   --color-background:   #ffffff;
   --color-surface:      #f8fafc;
   --color-border:       #e2e8f0;
@@ -630,6 +686,25 @@ Create a `global.css` in your project root to define your **light/dark color pal
   --color-text-muted:   #64748b;
   --color-primary:      #3b82f6;
   --color-secondary:    #8b5cf6;
+
+  /* ---- Generic variables (for var() resolution in config) ---- */
+  /* HSL color values — use with hsl(var(--primary)) in config */
+  --border:                220 13% 91%;
+  --primary:               224 71% 51%;
+  --primary-foreground:    210 20% 98%;
+  --secondary:             220 14% 96%;
+  --secondary-foreground:  221 39% 11%;
+  --destructive:           0 84% 60%;
+  --muted:                 220 14% 96%;
+  --muted-foreground:      220 9% 46%;
+
+  /* Design tokens — use with var(--radius), calc(var(--radius) - 2px) */
+  --radius: 8;
+
+  /* Shadow levels — use with var(--shadow-N) in config */
+  --shadow-0: none;
+  --shadow-1: 0px 1px 2px 0px rgba(0, 0, 0, 0.05);
+  --shadow-4: 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1);
 }
 
 .dark {
@@ -641,10 +716,22 @@ Create a `global.css` in your project root to define your **light/dark color pal
   --color-text-muted:   #94a3b8;
   --color-primary:      #60a5fa;
   --color-secondary:    #a78bfa;
+
+  /* Dark mode HSL overrides */
+  --border:                215 28% 17%;
+  --primary:               216 91% 70%;
+  --primary-foreground:    221 39% 11%;
+  --secondary:             215 28% 17%;
+
+  --radius: 8;
+  --shadow-1: 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
+  --shadow-4: 0px 4px 6px -1px rgba(0, 0, 0, 0.4), 0px 2px 4px -2px rgba(0, 0, 0, 0.3);
 }
 ```
 
-> **Variable naming**: Use `--color-<name>` format. The `--color-` prefix is stripped so `--color-text` becomes `t.colors.text`, `--color-text-muted` becomes `t.colors['text-muted']`.
+> **Variable naming**:
+> - `--color-<name>` format: The `--color-` prefix is stripped, so `--color-text` → `t.colors.text`
+> - `--<name>` format: Available for `var(--<name>)` resolution in config values. Both are stored in `rawVars` for CSS expression resolution.
 
 > **Auto-loaded:** When you set `input: './global.css'` in `withStyleFn()` (step 2 of Quick Start), Metro processes the CSS at build time and `StyleProvider` loads it automatically as a virtual module — no manual import or prop needed.
 
@@ -797,6 +884,70 @@ scripts/
 | `StyleProp<S>` | Style prop: static, function, or array of both |
 | `PropFunction<T>` | A prop value that can be static or a token function: `T \| (tokens: StyleTokens) => T` |
 | `TokenProp<T>` | Alias for `PropFunction<T>` (from `usePropsFn`) |
+| `ThemeKeyRegistry` | Known theme key registry (extensible via module augmentation) |
+
+### CSS Expression Utilities
+
+| Export | Description |
+|--------|-------------|
+| `resolveColorExpression()` | Resolve `var()`, `hsl()`, `rgb()` in a color string |
+| `resolveNumericExpression()` | Resolve `var()`, `calc()` in a numeric string |
+| `resolveShadowExpression()` | Resolve `var()` in a shadow string |
+| `resolveCssExpression()` | Auto-detect and resolve any CSS expression |
+| `flattenColors()` | Flatten nested Tailwind-style color objects |
+| `getRawVarsForScheme()` | Get raw CSS vars map for a color scheme |
+
+## TypeScript Autocomplete for Theme Keys
+
+All theme properties provide **autocomplete for known keys** out of the box:
+
+```tsx
+// ✅ Full autocomplete — IDE suggests 'sm', 'md', 'lg', 'xl', '2xl', 'full', 'none'
+t.theme.borderRadius['lg']
+
+// ✅ Full autocomplete — IDE suggests '0', '1', '2', '3', '4', '5', '6', '8', '10', '12'
+t.theme.spacing[4]
+
+// ✅ Full autocomplete — IDE suggests 'primary', 'secondary', 'background', 'text', etc.
+t.colors.primary
+
+// ✅ Full autocomplete — IDE suggests 'sm', 'md', 'lg', 'xl'
+t.breakpoint.up('md')
+```
+
+Custom keys from your config also work — they just won't appear in autocomplete unless you extend `ThemeKeyRegistry`.
+
+### Extending with Module Augmentation
+
+To add autocomplete for **your own custom keys**, extend `ThemeKeyRegistry` via module augmentation:
+
+```ts
+// stylefn-env.d.ts (or any .d.ts file in your project)
+declare module 'react-native-stylefn' {
+  interface ThemeKeyRegistry {
+    // Add your custom color keys
+    color:
+      | 'primary' | 'primary-foreground'
+      | 'secondary' | 'secondary-foreground'
+      | 'destructive' | 'destructive-foreground'
+      | 'muted' | 'muted-foreground'
+      | 'accent' | 'accent-foreground'
+      | 'popover' | 'popover-foreground'
+      | 'card' | 'card-foreground'
+      | 'border' | 'input' | 'ring'
+      | 'background' | 'foreground';
+
+    // Add custom shadow keys
+    shadow: 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
+      | 'elevation-none' | 'elevation-low' | 'elevation-medium' | 'elevation-high';
+
+    // Add custom spacing keys
+    spacing: '0' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | '10' | '12' | '14' | '16';
+  }
+}
+```
+
+Now your IDE suggests all your custom keys everywhere!
 
 ## License
 

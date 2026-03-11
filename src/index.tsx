@@ -19,6 +19,7 @@ export type {
   StyleProp,
   StyleFnConfig,
   ThemeConfig,
+  ThemeKeyRegistry,
   CSSVariables,
   BreakpointName,
   BreakpointQuery,
@@ -40,6 +41,20 @@ export {
   defaultConfig,
   defaultCSSVariables,
 } from './config/defaults';
+
+// CSS expression resolution (for advanced usage)
+export {
+  containsCssExpression,
+  resolveColorExpression,
+  resolveNumericExpression,
+  resolveShadowExpression,
+  resolveCssExpression,
+  flattenColors,
+  resolveNumericMap,
+  resolveColorMap,
+  resolveShadowMap,
+  getRawVarsForScheme,
+} from './config/cssExpressionResolver';
 
 // Token resolution (for advanced usage / testing)
 export { resolveTokens } from './tokens';
