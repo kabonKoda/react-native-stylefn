@@ -26,22 +26,21 @@ module.exports = {
       12: 48,
     },
     fontSize: {
-      'xs': 10,
-      'sm': 12,
-      'base': 14,
-      'lg': 16,
-      'xl': 20,
+      xs: 10,
+      sm: 12,
+      base: 14,
+      lg: 16,
+      xl: 20,
       '2xl': 24,
-      '3xl': 30,
     },
     borderRadius: {
-      'none': 0,
-      'sm': 'calc(var(--radius) - 4px)',
-      'md': 'calc(var(--radius) - 2px)',
-      'lg': 'var(--radius)',
-      'xl': 16,
+      none: 0,
+      sm: 'calc(var(--radius) - 4px)',
+      md: 'calc(var(--radius) - 2px)',
+      lg: 'var(--radius)',
+      xl: 16,
       '2xl': 24,
-      'full': 9999,
+      full: 9999,
     },
     fontWeight: {
       normal: '400',
@@ -105,12 +104,12 @@ module.exports = {
     // boxShadow is a Tailwind-compatible alias for shadows
     // String values are auto-wrapped as { boxShadow: value }
     boxShadow: {
-      'none': 'var(--shadow-0)',
-      'sm': 'var(--shadow-1)',
-      'DEFAULT': 'var(--shadow-2)',
-      'md': 'var(--shadow-4)',
-      'lg': 'var(--shadow-8)',
-      'xl': 'var(--shadow-12)',
+      none: 'var(--shadow-0)',
+      sm: 'var(--shadow-1)',
+      DEFAULT: 'var(--shadow-2)',
+      md: 'var(--shadow-4)',
+      lg: 'var(--shadow-8)',
+      xl: 'var(--shadow-12)',
       '2xl': 'var(--shadow-16)',
       // Elevation aliases
       'elevation-none': 'var(--shadow-0)',
@@ -118,11 +117,7 @@ module.exports = {
       'elevation-medium': 'var(--shadow-4)',
       'elevation-high': 'var(--shadow-8)',
     },
-    extend: {
-      borderRadius: {
-        '3xl': 60
-      }
-    },
+    extend: {},
   },
   darkMode: 'system',
 };

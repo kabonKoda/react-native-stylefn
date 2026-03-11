@@ -4,6 +4,9 @@ import type { ScreenInfo } from './types';
 /** Matches strings like "50vw", "100vh", "33.5vw", "0.625rem", etc. */
 const CSS_UNIT_RE = /^(-?\d+\.?\d*)(vh|vw|rem)$/;
 
+/** Matches fraction strings like "1/2", "2/3", "3/4", "5/6", etc. */
+const FRACTION_RE = /^(\d+)\/(\d+)$/;
+
 /**
  * Converts a viewport-width value (0–100) to pixels based on the current screen width.
  *
@@ -46,18 +49,36 @@ export function rem(value: number): number {
 }
 
 /**
- * Parses a single string value that may contain a viewport unit.
- * Returns the converted pixel number, or the original value if it doesn't match.
+ * Parses a single string value that may contain a CSS unit or fraction.
+ * Returns the converted value, or the original value if it doesn't match.
+ *
+ * Supported formats:
+ * - Viewport units: '50vw', '100vh' → pixel number
+ * - Rem units: '0.625rem' → pixel number
+ * - Fractions: '1/2' → '50%', '2/3' → '66.67%' (percentage string for RN layout)
  *
  * @example
  * parseViewportValue('50vw')  // → 187.5  (on a 375px-wide screen)
  * parseViewportValue('100vh') // → 812    (on an 812px-tall screen)
+ * parseViewportValue('1/2')   // → '50%'
+ * parseViewportValue('2/3')   // → '66.66666666666667%'
  * parseViewportValue(16)      // → 16     (unchanged)
  * parseViewportValue('red')   // → 'red'  (unchanged)
  */
 export function parseViewportValue(value: unknown): unknown {
   if (typeof value !== 'string') return value;
 
+  // Check for fraction strings first: '1/2' → '50%'
+  const fractionMatch = FRACTION_RE.exec(value);
+  if (fractionMatch) {
+    const numerator = parseInt(fractionMatch[1]!, 10);
+    const denominator = parseInt(fractionMatch[2]!, 10);
+    if (denominator !== 0) {
+      return `${(numerator / denominator) * 100}%`;
+    }
+  }
+
+  // Check for CSS unit strings: '50vw', '100vh', '0.625rem'
   const match = CSS_UNIT_RE.exec(value);
   if (!match) return value;
 
@@ -70,6 +91,21 @@ export function parseViewportValue(value: unknown): unknown {
   if (unit === 'rem') return num * store.inlineRem;
 
   return value;
+}
+
+/**
+ * Converts a fraction to a percentage string for React Native layout.
+ *
+ * @example
+ * ```tsx
+ * import { fraction } from 'react-native-stylefn';
+ * <View style={{ width: fraction(1, 2) }} />   // → '50%'
+ * <View style={{ width: fraction(2, 3) }} />   // → '66.66666666666667%'
+ * <View style={{ width: fraction(1, 4) }} />   // → '25%'
+ * ```
+ */
+export function fraction(numerator: number, denominator: number): string {
+  return `${(numerator / denominator) * 100}%`;
 }
 
 /**

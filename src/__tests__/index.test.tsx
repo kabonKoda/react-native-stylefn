@@ -352,7 +352,7 @@ describe('Style resolution logic', () => {
 // Units: Viewport units (vh / vw)
 // =============================================================================
 
-import { vh, vw, calc } from '../units';
+import { vh, vw, calc, fraction } from '../units';
 import {
   parseViewportValue,
   resolveViewportUnits,
@@ -404,6 +404,26 @@ describe('parseViewportValue', () => {
     expect(parseViewportValue('-10vh')).toBe(-81.2);
   });
 
+  it('converts fraction "1/2" to "50%"', () => {
+    expect(parseViewportValue('1/2')).toBe('50%');
+  });
+
+  it('converts fraction "1/3" to percentage', () => {
+    expect(parseViewportValue('1/3')).toBe(`${(1 / 3) * 100}%`);
+  });
+
+  it('converts fraction "2/3" to percentage', () => {
+    expect(parseViewportValue('2/3')).toBe(`${(2 / 3) * 100}%`);
+  });
+
+  it('converts fraction "1/4" to "25%"', () => {
+    expect(parseViewportValue('1/4')).toBe('25%');
+  });
+
+  it('converts fraction "3/4" to "75%"', () => {
+    expect(parseViewportValue('3/4')).toBe('75%');
+  });
+
   it('passes through numbers unchanged', () => {
     expect(parseViewportValue(16)).toBe(16);
   });
@@ -421,11 +441,35 @@ describe('parseViewportValue', () => {
   });
 });
 
+describe('fraction helper', () => {
+  it('fraction(1, 2) returns "50%"', () => {
+    expect(fraction(1, 2)).toBe('50%');
+  });
+
+  it('fraction(1, 3) returns percentage string', () => {
+    expect(fraction(1, 3)).toBe(`${(1 / 3) * 100}%`);
+  });
+
+  it('fraction(3, 4) returns "75%"', () => {
+    expect(fraction(3, 4)).toBe('75%');
+  });
+
+  it('fraction(1, 1) returns "100%"', () => {
+    expect(fraction(1, 1)).toBe('100%');
+  });
+});
+
 describe('resolveViewportUnits', () => {
   it('converts vh/vw strings in a style object', () => {
     const style = { width: '50vw', height: '100vh', color: 'red' };
     const resolved = resolveViewportUnits(style);
     expect(resolved).toEqual({ width: 187.5, height: 812, color: 'red' });
+  });
+
+  it('converts fraction strings in a style object', () => {
+    const style = { width: '1/2', height: '1/3', color: 'red' };
+    const resolved = resolveViewportUnits(style);
+    expect(resolved).toEqual({ width: '50%', height: `${(1 / 3) * 100}%`, color: 'red' });
   });
 
   it('returns original object if no viewport units present', () => {
