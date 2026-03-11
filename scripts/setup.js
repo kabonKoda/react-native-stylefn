@@ -87,10 +87,17 @@ function patchFile(filePath) {
     }
 
     fs.writeFileSync(filePath, patched, 'utf8');
-    console.log(`[react-native-stylefn] ✓ Patched StyleProp in ${path.relative(process.cwd(), filePath)}`);
+    console.log(
+      `[react-native-stylefn] ✓ Patched StyleProp in ${path.relative(
+        process.cwd(),
+        filePath
+      )}`
+    );
     return true;
   } catch (err) {
-    console.warn(`[react-native-stylefn] Could not patch ${filePath}: ${err.message}`);
+    console.warn(
+      `[react-native-stylefn] Could not patch ${filePath}: ${err.message}`
+    );
     return false;
   }
 }
@@ -109,9 +116,15 @@ function ensureTypeStub(rnDir) {
   let typesSource = null;
   const candidates = [
     // Sibling package (standard install or workspace link)
-    path.resolve(rnDir, '../react-native-stylefn/lib/typescript/src/types.d.ts'),
+    path.resolve(
+      rnDir,
+      '../react-native-stylefn/lib/typescript/src/types.d.ts'
+    ),
     // Two levels up (hoisted monorepo)
-    path.resolve(rnDir, '../../react-native-stylefn/lib/typescript/src/types.d.ts'),
+    path.resolve(
+      rnDir,
+      '../../react-native-stylefn/lib/typescript/src/types.d.ts'
+    ),
     // Source (development)
     path.resolve(rnDir, '../react-native-stylefn/src/types.ts'),
     path.resolve(rnDir, '../../react-native-stylefn/src/types.ts'),
@@ -126,45 +139,159 @@ function ensureTypeStub(rnDir) {
   fs.mkdirSync(stubDir, { recursive: true });
 
   if (typesSource) {
-    const relPath = path.relative(stubDir, typesSource).replace(/\.d\.ts$|\.ts$/, '');
-    fs.writeFileSync(stubIndex, `export { StyleTokens } from '${relPath.startsWith('.') ? relPath : './' + relPath}';\n`, 'utf8');
+    const relPath = path
+      .relative(stubDir, typesSource)
+      .replace(/\.d\.ts$|\.ts$/, '');
+    fs.writeFileSync(
+      stubIndex,
+      `export { StyleTokens } from '${
+        relPath.startsWith('.') ? relPath : './' + relPath
+      }';\n`,
+      'utf8'
+    );
   } else {
     // Fallback: define a minimal StyleTokens inline
-    fs.writeFileSync(stubIndex, [
-      `export interface StyleTokens {`,
-      `  theme: { spacing: Record<string, number>; fontSize: Record<string, number>; borderRadius: Record<string, number>; fontWeight: Record<string, string>; colors: Record<string, string>; shadows: Record<string, object>; opacity: Record<string, number>; };`,
-      `  colors: Record<string, string>;`,
-      `  dark: boolean;`,
-      `  colorScheme: 'light' | 'dark';`,
-      `  breakpoint: 'sm' | 'md' | 'lg' | 'xl';`,
-      `  screen: { width: number; height: number; scale: number; fontScale: number; };`,
-      `  orientation: 'portrait' | 'landscape';`,
-      `  platform: 'ios' | 'android' | 'web';`,
-      `  insets: { top: number; bottom: number; left: number; right: number; };`,
-      `  reducedMotion: boolean;`,
-      `  fontScale: number;`,
-      `  boldText: boolean;`,
-      `  highContrast: boolean;`,
-      `}`,
-    ].join('\n') + '\n', 'utf8');
+    fs.writeFileSync(
+      stubIndex,
+      [
+        `export interface StyleTokens {`,
+        `  theme: { spacing: Record<string, number>; fontSize: Record<string, number>; borderRadius: Record<string, number>; fontWeight: Record<string, string>; colors: Record<string, string>; shadows: Record<string, object>; opacity: Record<string, number>; };`,
+        `  colors: Record<string, string>;`,
+        `  dark: boolean;`,
+        `  colorScheme: 'light' | 'dark';`,
+        `  breakpoint: 'sm' | 'md' | 'lg' | 'xl';`,
+        `  screen: { width: number; height: number; scale: number; fontScale: number; };`,
+        `  orientation: 'portrait' | 'landscape';`,
+        `  platform: 'ios' | 'android' | 'web';`,
+        `  insets: { top: number; bottom: number; left: number; right: number; };`,
+        `  reducedMotion: boolean;`,
+        `  fontScale: number;`,
+        `  boldText: boolean;`,
+        `  highContrast: boolean;`,
+        `}`,
+      ].join('\n') + '\n',
+      'utf8'
+    );
   }
 
-  fs.writeFileSync(path.join(stubDir, 'package.json'), JSON.stringify({ name: 'react-native-stylefn', types: 'index.d.ts' }, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(
+    path.join(stubDir, 'package.json'),
+    JSON.stringify(
+      { name: 'react-native-stylefn', types: 'index.d.ts' },
+      null,
+      2
+    ) + '\n',
+    'utf8'
+  );
+}
+
+/**
+ * Patches the user's tsconfig.json to add jsxImportSource for automatic
+ * prop function support on ALL component props.
+ *
+ * This makes `(tokens) => value` work in any JSX prop without needing
+ * PropFunction<T> annotations in component type definitions.
+ */
+function patchTsConfig() {
+  const TSC_MARKER = 'react-native-stylefn';
+
+  // Walk up from CWD to find the project root tsconfig.json
+  const candidates = [path.resolve(process.cwd(), 'tsconfig.json')];
+
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) continue;
+
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8');
+
+      // Already configured
+      if (raw.includes('"jsxImportSource"') && raw.includes(TSC_MARKER)) {
+        return false;
+      }
+
+      // Try to parse as JSON
+      let config;
+      try {
+        config = JSON.parse(raw);
+      } catch (_) {
+        // tsconfig might have comments — can't safely auto-patch
+        console.log(
+          `[react-native-stylefn] ℹ️  Add this to your tsconfig.json compilerOptions for automatic prop functions:\n` +
+            `    "jsx": "react-jsx",\n` +
+            `    "jsxImportSource": "react-native-stylefn"`
+        );
+        return false;
+      }
+
+      if (!config.compilerOptions) {
+        config.compilerOptions = {};
+      }
+
+      let changed = false;
+
+      // Set jsx to react-jsx if not already set (required for jsxImportSource)
+      const currentJsx = config.compilerOptions.jsx;
+      if (
+        !currentJsx ||
+        currentJsx === 'react-native' ||
+        currentJsx === 'preserve'
+      ) {
+        config.compilerOptions.jsx = 'react-jsx';
+        changed = true;
+      }
+
+      // Add jsxImportSource
+      if (config.compilerOptions.jsxImportSource !== TSC_MARKER) {
+        config.compilerOptions.jsxImportSource = TSC_MARKER;
+        changed = true;
+      }
+
+      if (changed) {
+        fs.writeFileSync(
+          filePath,
+          JSON.stringify(config, null, 2) + '\n',
+          'utf8'
+        );
+        console.log(
+          `[react-native-stylefn] ✓ Patched ${path.relative(
+            process.cwd(),
+            filePath
+          )} — all props now accept token functions automatically.`
+        );
+        return true;
+      }
+    } catch (err) {
+      console.warn(
+        `[react-native-stylefn] Could not patch tsconfig: ${err.message}`
+      );
+    }
+  }
+
+  return false;
 }
 
 function setup() {
   const rnDir = findRNTypesDir();
 
   if (!rnDir) {
-    console.log('[react-native-stylefn] react-native not found, skipping type patching.');
+    console.log(
+      '[react-native-stylefn] react-native not found, skipping type patching.'
+    );
     return;
   }
 
   // Create the type stub for reliable import resolution
-  try { ensureTypeStub(rnDir); } catch (_) { /* silent */ }
+  try {
+    ensureTypeStub(rnDir);
+  } catch (_) {
+    /* silent */
+  }
 
   const filesToPatch = [
-    path.join(rnDir, 'types_generated/Libraries/StyleSheet/StyleSheetTypes.d.ts'),
+    path.join(
+      rnDir,
+      'types_generated/Libraries/StyleSheet/StyleSheetTypes.d.ts'
+    ),
     path.join(rnDir, 'Libraries/StyleSheet/StyleSheet.d.ts'),
   ];
 
@@ -176,7 +303,10 @@ function setup() {
   // Also patch StyleSheet.create in StyleSheet.d.ts so it accepts style functions
   // and returns a mapped type that normalises function values to a universal style
   // function type compatible with StyleProp<ViewStyle/TextStyle/ImageStyle>.
-  const stylesheetFile = path.join(rnDir, 'Libraries/StyleSheet/StyleSheet.d.ts');
+  const stylesheetFile = path.join(
+    rnDir,
+    'Libraries/StyleSheet/StyleSheet.d.ts'
+  );
   if (fs.existsSync(stylesheetFile)) {
     try {
       let content = fs.readFileSync(stylesheetFile, 'utf8');
@@ -192,14 +322,15 @@ function setup() {
           content = content.replace(
             namedStylesPattern,
             `${STYLESHEET_MARKER}\n  type NamedStyles<T> = {[P in keyof T]: ViewStyle | TextStyle | ImageStyle | ${fnType}};\n` +
-            `  type _StyleFnReturn<T> = { [K in keyof T]: T[K] extends (...args: any[]) => any ? ((tokens: import('react-native-stylefn').StyleTokens) => (ViewStyle & TextStyle & ImageStyle) | false | null | undefined) : T[K] };`
+              `  type _StyleFnReturn<T> = { [K in keyof T]: T[K] extends (...args: any[]) => any ? ((tokens: import('react-native-stylefn').StyleTokens) => (ViewStyle & TextStyle & ImageStyle) | false | null | undefined) : T[K] };`
           );
           changed = true;
         }
 
         // 2. Patch create return type from T to _StyleFnReturn<T>
         //    Match specifically the create function's return (preceded by NamedStyles<any>)
-        const createReturnPattern = /(styles:\s*T\s*&\s*NamedStyles<any>,\s*\)):\s*T\s*;/;
+        const createReturnPattern =
+          /(styles:\s*T\s*&\s*NamedStyles<any>,\s*\)):\s*T\s*;/;
         if (changed && createReturnPattern.test(content)) {
           content = content.replace(
             createReturnPattern,
@@ -210,15 +341,25 @@ function setup() {
         if (changed) {
           fs.writeFileSync(stylesheetFile, content, 'utf8');
           patchedAny = true;
-          console.log(`[react-native-stylefn] ✓ Patched StyleSheet.create in ${path.relative(process.cwd(), stylesheetFile)}`);
+          console.log(
+            `[react-native-stylefn] ✓ Patched StyleSheet.create in ${path.relative(
+              process.cwd(),
+              stylesheetFile
+            )}`
+          );
         }
       }
-    } catch (_) { /* silent */ }
+    } catch (_) {
+      /* silent */
+    }
   }
 
   // Patch the GENERATED StyleSheetExports.d.ts — this is the actual create()
   // function TypeScript resolves for modern RN (0.76+).
-  const exportsFile = path.join(rnDir, 'types_generated/Libraries/StyleSheet/StyleSheetExports.d.ts');
+  const exportsFile = path.join(
+    rnDir,
+    'types_generated/Libraries/StyleSheet/StyleSheetExports.d.ts'
+  );
   if (fs.existsSync(exportsFile)) {
     try {
       let content = fs.readFileSync(exportsFile, 'utf8');
@@ -229,7 +370,8 @@ function setup() {
           /export declare const create:\s*<S extends ____Styles_Internal>\(obj:\s*S\s*&\s*____Styles_Internal\)\s*=>\s*Readonly<S>;/;
         if (createPattern.test(content)) {
           // First update the import to include ____DangerouslyImpreciseStyle_Internal
-          const importPattern = /import type \{ ____Styles_Internal \} from "\.\/StyleSheetTypes";/;
+          const importPattern =
+            /import type \{ ____Styles_Internal \} from "\.\/StyleSheetTypes";/;
           if (importPattern.test(content)) {
             content = content.replace(
               importPattern,
@@ -246,18 +388,34 @@ function setup() {
           content = content.replace(createPattern, replacement);
           fs.writeFileSync(exportsFile, content, 'utf8');
           patchedAny = true;
-          console.log(`[react-native-stylefn] ✓ Patched create in ${path.relative(process.cwd(), exportsFile)}`);
+          console.log(
+            `[react-native-stylefn] ✓ Patched create in ${path.relative(
+              process.cwd(),
+              exportsFile
+            )}`
+          );
         }
       }
-    } catch (_) { /* silent */ }
+    } catch (_) {
+      /* silent */
+    }
   }
 
   if (patchedAny) {
-    console.log('[react-native-stylefn] Style functions now work on ALL components with full TypeScript support.');
-    console.log('[react-native-stylefn] StyleSheet.create() also accepts style functions.');
+    console.log(
+      '[react-native-stylefn] Style functions now work on ALL components with full TypeScript support.'
+    );
+    console.log(
+      '[react-native-stylefn] StyleSheet.create() also accepts style functions.'
+    );
   } else {
-    console.log('[react-native-stylefn] Types already patched or no matching patterns found.');
+    console.log(
+      '[react-native-stylefn] Types already patched or no matching patterns found.'
+    );
   }
+
+  // Patch tsconfig.json to add jsxImportSource for automatic prop function support
+  patchTsConfig();
 }
 
 setup();

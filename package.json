@@ -16,6 +16,14 @@
       "default": "./lib/module/auto.js"
     },
     "./babel-plugin": "./babel-plugin/index.js",
+    "./jsx-runtime": {
+      "types": "./jsx-runtime/index.d.ts",
+      "default": "./jsx-runtime/index.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./jsx-dev-runtime/index.d.ts",
+      "default": "./jsx-dev-runtime/index.js"
+    },
     "./metro-config": "./metro-config/index.js",
     "./package.json": "./package.json"
   },
@@ -23,6 +31,8 @@
     "src",
     "lib",
     "babel-plugin",
+    "jsx-runtime",
+    "jsx-dev-runtime",
     "metro-config",
     "scripts",
     "!**/__tests__",

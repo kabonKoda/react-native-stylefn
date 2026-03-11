@@ -16,12 +16,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import {
-  useStyleFn,
-  useTheme,
-  usePropsFn,
-  type PropFunction,
-} from 'react-native-stylefn';
+import { useStyleFn, useTheme, usePropsFn } from 'react-native-stylefn';
 
 // =============================================================================
 // Example: Dark Mode Toggle
@@ -792,16 +787,14 @@ function CustomComponentDemo() {
 // =============================================================================
 
 /**
- * A simple box component that accepts width/height/borderRadius as numbers.
- * This simulates a third-party or custom component with non-style props.
- */
-/**
- * A simple box component — typed with PropFunction<T> to accept
- * both static values and token functions from the outside.
+ * A simple box component with PLAIN types — no PropFunction<T> needed!
  *
- * Internally, props are always resolved numbers/strings at runtime
- * because the Babel plugin transforms the call site.
- * We use `as number` / `as string` to tell TypeScript this.
+ * Thanks to jsxImportSource, consumers can still pass token functions
+ * like `width={({ orientation }) => orientation.landscape ? 120 : 80}`
+ * and TypeScript won't complain.
+ *
+ * At runtime, the Babel plugin wraps token functions with __resolveProp(),
+ * so props always arrive as resolved values (number/string).
  */
 function ResponsiveBox({
   width,
@@ -810,26 +803,19 @@ function ResponsiveBox({
   color,
   label,
 }: {
-  width: PropFunction<number>;
-  height: PropFunction<number>;
-  borderRadius: PropFunction<number>;
-  color: PropFunction<string>;
+  width: number;
+  height: number;
+  borderRadius: number;
+  color: string;
   label: string;
 }) {
-  // At runtime these are always resolved values (number/string)
-  // because the Babel plugin wraps token functions with __resolveProp()
-  const w = width as number;
-  const h = height as number;
-  const br = borderRadius as number;
-  const bg = color as string;
-
   return (
     <View
       style={{
-        width: w,
-        height: h,
-        borderRadius: br,
-        backgroundColor: bg,
+        width,
+        height,
+        borderRadius,
+        backgroundColor: color,
         alignItems: 'center' as const,
         justifyContent: 'center' as const,
       }}
@@ -840,7 +826,7 @@ function ResponsiveBox({
       <Text
         style={{ color: 'rgba(255,255,255,0.7)', fontSize: 9, marginTop: 2 }}
       >
-        {w}×{h}
+        {width}×{height}
       </Text>
     </View>
   );

@@ -2,12 +2,20 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react-native-stylefn",
     "paths": {
       "@/*": [
         "./*"
       ],
       "react-native-stylefn": [
         "../src/index.tsx"
+      ],
+      "react-native-stylefn/jsx-runtime": [
+        "../jsx-runtime/index"
+      ],
+      "react-native-stylefn/jsx-dev-runtime": [
+        "../jsx-dev-runtime/index"
       ],
       "react-native-stylefn/*": [
         "../src/*"

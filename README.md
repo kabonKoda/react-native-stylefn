@@ -28,7 +28,9 @@ npm install react-native-stylefn
 yarn add react-native-stylefn
 ```
 
-The postinstall script automatically patches React Native's `StyleProp` type so that **every component** accepts style functions — no manual type configuration needed.
+The postinstall script automatically:
+1. **Patches React Native's `StyleProp` type** so every component accepts style functions
+2. **Adds `jsxImportSource` to your tsconfig.json** so all component props accept token functions `(tokens) => value` — no `PropFunction<T>` annotations needed
 
 ## Quick Start
 
@@ -194,6 +196,22 @@ function StyledCard({ style, children }) {
 
 Token functions aren't limited to `style` props — you can use them in **any** prop that accepts a value. The Babel plugin automatically detects arrow functions in non-callback props and resolves them with the current tokens.
 
+**No special types needed!** Your component can declare plain types like `width: number` and consumers can still pass token functions. The custom JSX runtime handles TypeScript automatically.
+
+```tsx
+// Component uses plain types — no PropFunction<T> needed:
+function ResponsiveBox({ width, height, color }: { width: number; height: number; color: string }) {
+  return <View style={{ width, height, backgroundColor: color }} />;
+}
+
+// ✅ Consumers pass token functions — TypeScript is happy, Babel resolves at runtime:
+<ResponsiveBox
+  width={({ orientation }) => orientation.landscape ? 200 : 120}
+  height={80}
+  color={({ dark }) => dark ? '#3b82f6' : '#2563eb'}
+/>
+```
+
 ```tsx
 // ✅ These all work automatically — the Babel plugin wraps them for you
 
@@ -293,28 +311,39 @@ function DrawingToolbar({ brushState }) {
 }
 ```
 
-### 11. Type your own components with `PropFunction<T>`
+### 11. `PropFunction<T>` (optional — for explicit typing)
 
-Use the `PropFunction<T>` type to declare props that accept either a static value or a token function:
+With `jsxImportSource` configured (done automatically by postinstall), you **don't need** `PropFunction<T>` — plain types like `width: number` already accept token functions in JSX.
+
+However, if you prefer explicit typing or need it for non-JSX contexts, `PropFunction<T>` is still available:
 
 ```tsx
 import type { PropFunction } from 'react-native-stylefn';
 
-interface StrokePreviewProps {
-  brushState: BrushState;
-  width: PropFunction<number>;
-  height: PropFunction<number>;
-  isEraser?: boolean;
+// Option A: Plain types (recommended — works automatically with jsxImportSource)
+interface BoxProps {
+  width: number;
+  height: number;
 }
 
-// Now consumers can pass either:
-<StrokePreview width={266} height={180} />                                    // static
-<StrokePreview width={({ orientation }) => orientation.landscape ? 266 : 200} height={180} /> // dynamic
+// Option B: Explicit PropFunction (still works, useful for documentation)
+interface BoxProps {
+  width: PropFunction<number>;
+  height: PropFunction<number>;
+}
+
+// Both allow consumers to pass:
+<Box width={266} height={180} />                                              // static
+<Box width={({ orientation }) => orientation.landscape ? 266 : 200} height={180} /> // dynamic
 ```
 
 ## How Types Work — Universal & Automatic
 
-When you install `react-native-stylefn`, the **postinstall script** automatically patches React Native's `StyleProp<T>` type definition to include style functions:
+The type system works through **two complementary mechanisms**, both set up automatically by the postinstall script:
+
+### 1. Style Props — `StyleProp<T>` patching
+
+The postinstall script patches React Native's `StyleProp<T>` type definition to include style functions:
 
 ```ts
 // Before (RN's original type):
@@ -327,9 +356,47 @@ type StyleProp<T> = null | void | T | false | "" | ReadonlyArray<StyleProp<T>>
 
 Since **every** React Native component uses `StyleProp` for its style props, this single patch makes style functions work everywhere — View, Text, ScrollView, FlatList, third-party components, custom components — any prop typed as `StyleProp`.
 
+### 2. Non-Style Props — Custom JSX Runtime (`jsxImportSource`)
+
+The postinstall script also adds `jsxImportSource: "react-native-stylefn"` to your `tsconfig.json`. This points TypeScript to a custom JSX runtime that overrides `LibraryManagedAttributes` — the type TypeScript uses to check JSX props.
+
+The custom runtime wraps every non-callback, non-style prop type `T` with `T | ((tokens: StyleTokens) => T)`, so **any component prop** automatically accepts token functions without needing `PropFunction<T>`:
+
+```tsx
+// Your component — plain types, nothing special:
+function Box({ width, color }: { width: number; color: string }) { ... }
+
+// TypeScript sees the JSX props as:
+//   width: number | ((tokens: StyleTokens) => number)
+//   color: string | ((tokens: StyleTokens) => string)
+
+// So this just works:
+<Box width={({ breakpoint }) => breakpoint.up('lg') ? 200 : 120} color="#fff" />
+```
+
+Props that are **never** widened (they keep their original types):
+- `key`, `ref`, `children`
+- Event handlers: `on*` (onPress, onChange, etc.)
+- Render props: `render*`, `handle*`
+- Style props: `style`, `*Style` (already handled by StyleProp patching)
+- Known callbacks: `keyExtractor`, `getItem`, `ListHeaderComponent`, etc.
+
+### Manual setup
+
 You can also run the setup manually:
 ```bash
 npx react-native-stylefn setup
+```
+
+Or add the tsconfig settings yourself:
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react-native-stylefn"
+  }
+}
 ```
 
 ## Token Reference
@@ -685,11 +752,19 @@ src/
 ├── stylefn.d.ts       # type augmentation for RN components
 └── index.tsx          # public exports
 
+jsx-runtime/
+├── index.js           # re-exports react/jsx-runtime
+└── index.d.ts         # custom JSX types — widens all props to accept token fns
+
+jsx-dev-runtime/
+├── index.js           # re-exports react/jsx-dev-runtime
+└── index.d.ts         # same as jsx-runtime (for development builds)
+
 babel-plugin/
 └── index.js           # compile-time transform (style + prop + auto-import)
 
 scripts/
-└── setup.js           # postinstall: patches RN's StyleProp type
+└── setup.js           # postinstall: patches RN's StyleProp type + tsconfig
 ```
 
 ## API Reference
