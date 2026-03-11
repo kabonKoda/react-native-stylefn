@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 
 const MARKER = '/* react-native-stylefn patched */';
-const STYLE_FN_TYPE = `((tokens: import('react-native-stylefn').StyleTokens) => T | false | null | undefined)`;
+const STYLE_FN_TYPE = `((tokens: import('react-native-stylefn').StyleTokens) => import('react-native-stylefn').LooseStyle<T> | false | null | undefined)`;
 
 /**
  * Find react-native's node_modules directory from the current working directory.
@@ -142,15 +142,14 @@ function ensureTypeStub(rnDir) {
     const relPath = path
       .relative(stubDir, typesSource)
       .replace(/\.d\.ts$|\.ts$/, '');
+    const relImport = relPath.startsWith('.') ? relPath : './' + relPath;
     fs.writeFileSync(
       stubIndex,
-      `export { StyleTokens } from '${
-        relPath.startsWith('.') ? relPath : './' + relPath
-      }';\n`,
+      `export { StyleTokens, StyleFnDimension, LooseStyle } from '${relImport}';\n`,
       'utf8'
     );
   } else {
-    // Fallback: define a minimal StyleTokens inline
+    // Fallback: define minimal types inline
     fs.writeFileSync(
       stubIndex,
       [
@@ -169,6 +168,8 @@ function ensureTypeStub(rnDir) {
         `  boldText: boolean;`,
         `  highContrast: boolean;`,
         `}`,
+        `export type StyleFnDimension = \`\${number}/\${number}\` | \`\${number}vw\` | \`\${number}vh\` | \`\${number}rem\`;`,
+        `export type LooseStyle<S> = S extends any ? { [K in keyof S]?: S[K] | StyleFnDimension } : never;`,
       ].join('\n') + '\n',
       'utf8'
     );

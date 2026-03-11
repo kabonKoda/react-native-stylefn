@@ -2,7 +2,9 @@
   "compilerOptions": {
     "rootDir": ".",
     "paths": {
-      "react-native-stylefn": ["./src/index"]
+      "react-native-stylefn": ["./src/index"],
+      "react-native-stylefn/jsx-runtime": ["./jsx-runtime/index"],
+      "react-native-stylefn/jsx-dev-runtime": ["./jsx-dev-runtime/index"]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
@@ -10,6 +12,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "jsx": "react-jsx",
+    "jsxImportSource": "react-native-stylefn",
     "lib": ["ESNext"],
     "module": "ESNext",
     "moduleResolution": "bundler",

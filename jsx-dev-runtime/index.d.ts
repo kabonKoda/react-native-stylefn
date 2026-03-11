@@ -6,7 +6,11 @@
 import * as React from 'react';
 export { Fragment } from 'react';
 
-type _StyleFnTokens = import('react-native-stylefn').StyleTokens;
+// Use a relative import so this resolves correctly in both the monorepo (dev)
+// and in published packages — no dependency on module path alias resolution.
+type _StyleFnTokens = import('../src/types').StyleTokens;
+type _StyleFnForStyle = (_tokens: _StyleFnTokens) => any;
+type _StylePropHasFn<T> = ((_tokens: _StyleFnTokens) => any) extends T ? true : false;
 
 type _WithTokenFunctions<P> = {
   [K in keyof P]: K extends
@@ -37,7 +41,9 @@ type _WithTokenFunctions<P> = {
       : K extends `handle${string}`
       ? P[K]
       : K extends 'style' | `${string}Style` | `${string}style`
-      ? P[K]
+      ? _StylePropHasFn<P[K]> extends true
+        ? P[K]
+        : P[K] | _StyleFnForStyle | ReadonlyArray<Record<string, any> | _StyleFnForStyle | false | null | undefined>
       : P[K] | ((_tokens: _StyleFnTokens) => NonNullable<P[K]>)
     : P[K];
 };

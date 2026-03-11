@@ -312,11 +312,53 @@ export interface StyleTokens {
 export type RNStyle = ViewStyle | TextStyle | ImageStyle;
 
 /**
+ * Custom string values supported by react-native-stylefn that are resolved
+ * at runtime by the Babel plugin via `resolveViewportUnits()`:
+ *
+ * - Fractions: `"1/2"` → `"50%"`, `"3/4"` → `"75%"`
+ * - Viewport width: `"50vw"` → pixels
+ * - Viewport height: `"100vh"` → pixels
+ * - Rem units: `"1rem"` → pixels (based on configured inlineRem)
+ *
+ * These are valid in style function return types because the Babel plugin
+ * wraps them with `__resolveStyle()` which converts them before React Native
+ * sees them.
+ */
+export type StyleFnDimension =
+  | `${number}/${number}`
+  | `${number}vw`
+  | `${number}vh`
+  | `${number}rem`;
+
+/**
+ * Loosens a style type to also accept `StyleFnDimension` custom strings
+ * for any property. Used in style function return types.
+ *
+ * Distributive over unions: `LooseStyle<ViewStyle | TextStyle>` becomes
+ * `LooseStyle<ViewStyle> | LooseStyle<TextStyle>`.
+ */
+export type LooseStyle<S> = S extends any
+  ? { [K in keyof S]?: S[K] | StyleFnDimension }
+  : never;
+
+/**
  * Style function that receives tokens and returns a style object.
+ *
+ * The return type accepts custom dimension strings (fractions, viewport units,
+ * rem) that are resolved at runtime by the Babel plugin.
+ *
+ * @example
+ * ```tsx
+ * <View style={(t) => ({
+ *   width: t.orientation.landscape ? '50vw' : '100vw',
+ *   height: '3/4',          // → "75%"
+ *   padding: '1rem',        // → 16px (default)
+ * })} />
+ * ```
  */
 export type StyleFunction<S = RNStyle> = (
   tokens: StyleTokens
-) => S | false | null | undefined;
+) => LooseStyle<S> | false | null | undefined;
 
 /**
  * A style prop value — can be a plain style, a style function, or an array of both.

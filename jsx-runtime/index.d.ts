@@ -25,13 +25,28 @@
 import * as React from 'react';
 export { Fragment } from 'react';
 
-// Use import() type so this works regardless of module resolution quirks.
-type _StyleFnTokens = import('react-native-stylefn').StyleTokens;
+// Use a relative import so this resolves correctly in both the monorepo (dev)
+// and in published packages — no dependency on module path alias resolution.
+type _StyleFnTokens = import('../src/types').StyleTokens;
+
+// A style function returning `any` — used to widen narrowly-typed style props
+// (e.g. `style?: ViewStyle`) to also accept token functions.
+type _StyleFnForStyle = (_tokens: _StyleFnTokens) => any;
+
+// True when T already contains a callable type — meaning the component's style
+// prop is already typed as StyleProp<T> (patched) and includes a function type.
+// When true, we leave the prop alone to avoid adding a competing function
+// signature that would break TypeScript's contextual typing of `t`.
+type _StylePropHasFn<T> = ((_tokens: _StyleFnTokens) => any) extends T ? true : false;
 
 // ---------------------------------------------------------------------------
 // Utility: widen each prop to also accept a token function, UNLESS it's a
 // callback, ref, key, children, or style prop (those are already handled or
 // should not be wrapped).
+//
+// Style props are widened ONLY when they don't already contain a function type
+// (i.e. `style?: ViewStyle` instead of `StyleProp<ViewStyle>`). This avoids
+// creating competing contextual function signatures that would break inference.
 // ---------------------------------------------------------------------------
 
 type _WithTokenFunctions<P> = {
@@ -66,7 +81,9 @@ type _WithTokenFunctions<P> = {
       : K extends `handle${string}`
       ? P[K]
       : K extends 'style' | `${string}Style` | `${string}style`
-      ? P[K]
+      ? _StylePropHasFn<P[K]> extends true
+        ? P[K]
+        : P[K] | _StyleFnForStyle | ReadonlyArray<Record<string, any> | _StyleFnForStyle | false | null | undefined>
       : P[K] | ((_tokens: _StyleFnTokens) => NonNullable<P[K]>)
     : P[K];
 };

@@ -17,6 +17,8 @@ export type {
   StyleTokens,
   StyleFunction,
   StyleProp,
+  StyleFnDimension,
+  LooseStyle,
   StyleFnConfig,
   ThemeConfig,
   ThemeKeyRegistry,

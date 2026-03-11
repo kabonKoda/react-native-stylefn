@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import type { ViewStyle, TextStyle, ImageStyle } from 'react-native';
-import type { StyleTokens } from './types';
+import type { StyleTokens, LooseStyle } from './types';
 
 // Capture the original StyleSheet.create before patch.ts replaces it.
 // This module is imported by patch.ts, so it initialises first.
@@ -8,9 +8,10 @@ const originalCreate = StyleSheet.create.bind(StyleSheet);
 
 /**
  * A style function for StyleSheet.create.
+ * Returns a LooseStyle to accept custom dimension strings (fractions, viewport units).
  */
 type StyleFn<S extends ViewStyle | TextStyle | ImageStyle = ViewStyle | TextStyle | ImageStyle> =
-  (tokens: StyleTokens) => S | false | null | undefined;
+  (tokens: StyleTokens) => LooseStyle<S> | false | null | undefined;
 
 /**
  * Input type for createStyles — each key can be a static style or a style function.
