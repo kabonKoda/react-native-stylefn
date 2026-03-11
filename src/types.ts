@@ -165,6 +165,16 @@ export interface BreakpointQuery {
   up: (name: BreakpointName) => boolean;
   /** True when screen width < the given breakpoint threshold */
   down: (name: BreakpointName) => boolean;
+  /**
+   * True when the current breakpoint is NOT the given breakpoint.
+   * @example `t.breakpoint.not('sm')` — true on md, lg, xl etc.
+   */
+  not: (name: BreakpointName) => boolean;
+  /**
+   * True when screen width is >= lower threshold AND < upper threshold.
+   * @example `t.breakpoint.between('md', 'xl')` — true for md and lg, false for sm and xl+
+   */
+  between: (lower: BreakpointName, upper: BreakpointName) => boolean;
 }
 
 /**

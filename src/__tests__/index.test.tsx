@@ -184,6 +184,73 @@ describe('createBreakpointQuery', () => {
       expect(bp.down('xxl')).toBe(false);
     });
   });
+
+  describe('not()', () => {
+    it('returns true when current breakpoint is not the given name', () => {
+      const bp = createBreakpointQuery(400, screens); // current = 'md'
+      expect(bp.not('sm')).toBe(true);
+      expect(bp.not('lg')).toBe(true);
+      expect(bp.not('xl')).toBe(true);
+    });
+
+    it('returns false when current breakpoint matches the given name', () => {
+      const bp = createBreakpointQuery(400, screens); // current = 'md'
+      expect(bp.not('md')).toBe(false);
+    });
+
+    it('returns false for unknown breakpoint', () => {
+      const bp = createBreakpointQuery(400, screens);
+      expect(bp.not('xxl')).toBe(false);
+    });
+
+    it('works at exact breakpoint boundaries', () => {
+      const bp = createBreakpointQuery(430, screens); // current = 'lg'
+      expect(bp.not('lg')).toBe(false);
+      expect(bp.not('md')).toBe(true);
+    });
+  });
+
+  describe('between()', () => {
+    it('returns true when screen width is within the range', () => {
+      const bp = createBreakpointQuery(400, screens); // 400 >= 375 (md) AND 400 < 768 (xl)
+      expect(bp.between('md', 'xl')).toBe(true);
+    });
+
+    it('returns true at exact lower boundary', () => {
+      const bp = createBreakpointQuery(375, screens); // 375 >= 375 (md) AND 375 < 430 (lg)
+      expect(bp.between('md', 'lg')).toBe(true);
+    });
+
+    it('returns false at exact upper boundary', () => {
+      const bp = createBreakpointQuery(430, screens); // 430 >= 375 (md) but 430 NOT < 430 (lg)
+      expect(bp.between('md', 'lg')).toBe(false);
+    });
+
+    it('returns false when screen width is below the range', () => {
+      const bp = createBreakpointQuery(320, screens); // 320 < 375 (md)
+      expect(bp.between('md', 'xl')).toBe(false);
+    });
+
+    it('returns false when screen width is above the range', () => {
+      const bp = createBreakpointQuery(800, screens); // 800 >= 768 (xl), not < 768
+      expect(bp.between('md', 'xl')).toBe(false);
+    });
+
+    it('returns true for full sm-to-xl range', () => {
+      const bp = createBreakpointQuery(400, screens);
+      expect(bp.between('sm', 'xl')).toBe(true); // 400 >= 0 AND 400 < 768
+    });
+
+    it('returns false for unknown lower breakpoint', () => {
+      const bp = createBreakpointQuery(400, screens);
+      expect(bp.between('xxl', 'xl')).toBe(false);
+    });
+
+    it('returns false for unknown upper breakpoint', () => {
+      const bp = createBreakpointQuery(400, screens);
+      expect(bp.between('md', 'xxl')).toBe(false);
+    });
+  });
 });
 
 // =============================================================================

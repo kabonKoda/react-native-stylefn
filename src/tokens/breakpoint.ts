@@ -21,9 +21,7 @@ function deriveCurrentBreakpoint(
   thresholds: Record<string, number>
 ): BreakpointName {
   // Sort breakpoints by threshold descending
-  const sorted = Object.entries(thresholds).sort(
-    ([, a], [, b]) => b - a
-  );
+  const sorted = Object.entries(thresholds).sort(([, a], [, b]) => b - a);
 
   for (const [name, minWidth] of sorted) {
     if (screenWidth >= minWidth) {
@@ -47,6 +45,8 @@ function deriveCurrentBreakpoint(
  * bp.up('lg')    // false (400 < 430)
  * bp.down('lg')  // true  (400 < 430)
  * bp.down('md')  // false (400 >= 375)
+ * bp.not('sm')   // true  (current is 'md', not 'sm')
+ * bp.between('md', 'xl') // true  (400 >= 375 AND 400 < 768)
  * ```
  */
 export function createBreakpointQuery(
@@ -61,7 +61,11 @@ export function createBreakpointQuery(
     up: (name: BreakpointName): boolean => {
       const threshold = thresholds[name];
       if (threshold === undefined) {
-        console.warn(`[stylefn] Unknown breakpoint "${name}". Available: ${Object.keys(thresholds).join(', ')}`);
+        console.warn(
+          `[stylefn] Unknown breakpoint "${name}". Available: ${Object.keys(
+            thresholds
+          ).join(', ')}`
+        );
         return false;
       }
       return screenWidth >= threshold;
@@ -69,10 +73,46 @@ export function createBreakpointQuery(
     down: (name: BreakpointName): boolean => {
       const threshold = thresholds[name];
       if (threshold === undefined) {
-        console.warn(`[stylefn] Unknown breakpoint "${name}". Available: ${Object.keys(thresholds).join(', ')}`);
+        console.warn(
+          `[stylefn] Unknown breakpoint "${name}". Available: ${Object.keys(
+            thresholds
+          ).join(', ')}`
+        );
         return false;
       }
       return screenWidth < threshold;
+    },
+    not: (name: BreakpointName): boolean => {
+      if (thresholds[name] === undefined) {
+        console.warn(
+          `[stylefn] Unknown breakpoint "${name}". Available: ${Object.keys(
+            thresholds
+          ).join(', ')}`
+        );
+        return false;
+      }
+      return current !== name;
+    },
+    between: (lower: BreakpointName, upper: BreakpointName): boolean => {
+      const lowerThreshold = thresholds[lower];
+      const upperThreshold = thresholds[upper];
+      if (lowerThreshold === undefined) {
+        console.warn(
+          `[stylefn] Unknown breakpoint "${lower}". Available: ${Object.keys(
+            thresholds
+          ).join(', ')}`
+        );
+        return false;
+      }
+      if (upperThreshold === undefined) {
+        console.warn(
+          `[stylefn] Unknown breakpoint "${upper}". Available: ${Object.keys(
+            thresholds
+          ).join(', ')}`
+        );
+        return false;
+      }
+      return screenWidth >= lowerThreshold && screenWidth < upperThreshold;
     },
   };
 }
