@@ -25,6 +25,10 @@ export function parseCSSVariables(css: string): CSSVariables {
     return result;
   }
 
+  // Strip CSS comments (/* ... */) before parsing to prevent them
+  // from being included in selector matches
+  css = css.replace(/\/\*[\s\S]*?\*\//g, '');
+
   // Match selector blocks: selector { ... }
   const blockRegex = /([^{]+)\{([^}]*)\}/g;
   let match: RegExpExecArray | null;

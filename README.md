@@ -28,23 +28,196 @@ npm install react-native-stylefn
 yarn add react-native-stylefn
 ```
 
-The postinstall script automatically:
-1. **Patches React Native's `StyleProp` type** so every component accepts style functions
-2. **Adds `jsxImportSource` to your tsconfig.json** so all component props accept token functions `(tokens) => value` — no `PropFunction<T>` annotations needed
+## Complete Setup Guide
 
-## Quick Start
+After installing, there are **6 steps** to fully set up the library. Steps 1–3 are handled automatically by the postinstall script. Steps 4–6 require manual file edits. An optional Step 7 covers the design token config files.
 
-### 1. Add the Babel plugin
+> **TL;DR** — Install, check that postinstall ran, add the Babel plugin, add the Metro wrapper, wrap your app in `<StyleProvider>`, create `global.css` if you want CSS variables. That's it.
+
+---
+
+### Step 1 — Automatic: `StyleProp<T>` type patching (postinstall)
+
+**What happens:** The `postinstall` script (`scripts/setup.js`) runs automatically after `npm install` / `yarn add`. It patches React Native's `StyleProp<T>` type definition so that **every** component's `style` prop accepts style functions.
+
+**Where it patches:**
+```
+node_modules/react-native/
+  ├── types_generated/Libraries/StyleSheet/StyleSheetTypes.d.ts  ← StyleProp<T>
+  ├── types_generated/Libraries/StyleSheet/StyleSheetExports.d.ts ← StyleSheet.create()
+  └── Libraries/StyleSheet/StyleSheet.d.ts                       ← (older RN versions)
+```
+
+**What the patch looks like:**
+```ts
+// Before (React Native's original type):
+export type StyleProp<T> = null | void | T | false | "" | ReadonlyArray<StyleProp<T>>;
+
+// After (patched by react-native-stylefn):
+export type StyleProp<T> = null | void | T | false | "" | ReadonlyArray<StyleProp<T>>
+  | ((tokens: import('react-native-stylefn').StyleTokens) => T | false | null | undefined);
+```
+
+Since **every** React Native component (`View`, `Text`, `ScrollView`, `FlatList`, third-party components, etc.) uses `StyleProp` for its style props, this single patch makes style functions work everywhere.
+
+It also patches `StyleSheet.create()` to accept style functions as values, so you can mix static styles and dynamic style functions in the same `StyleSheet.create()` call.
+
+**The script also creates a type stub** at `node_modules/react-native/node_modules/react-native-stylefn/` so that the `import('react-native-stylefn').StyleTokens` reference in the patched type always resolves correctly, regardless of monorepo layout.
+
+> **If postinstall didn't run** (e.g. you used `--ignore-scripts`), run it manually:
+> ```bash
+> npx react-native-stylefn setup
+> ```
+
+> **After upgrading React Native**, run it again — RN upgrades overwrite the type files:
+> ```bash
+> npx react-native-stylefn setup
+> ```
+
+---
+
+### Step 2 — Automatic: `tsconfig.json` patching (postinstall)
+
+**What happens:** The same postinstall script also patches your project's `tsconfig.json` to add `jsxImportSource`. This points TypeScript to a **custom JSX runtime** that makes ALL component props (not just style props) accept token functions.
+
+**What it adds to your `tsconfig.json`:**
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react-native-stylefn"
+  }
+}
+```
+
+**Why this matters:** Without this, only `style` props would accept `(t) => ...` functions (via the `StyleProp` patch from Step 1). With `jsxImportSource`, **any** non-callback prop like `width`, `height`, `columns`, `color`, etc. also accepts token functions — and TypeScript won't complain:
+
+```tsx
+// Component declares plain types:
+function Box({ width, color }: { width: number; color: string }) { ... }
+
+// Consumer passes token functions — TypeScript is happy because jsxImportSource is set:
+<Box
+  width={({ orientation }) => orientation.landscape ? 200 : 120}
+  color={({ dark }) => dark ? '#fff' : '#000'}
+/>
+```
+
+**How it works:** The custom JSX runtime lives in:
+```
+react-native-stylefn/
+  ├── jsx-runtime/index.d.ts      ← Production builds
+  └── jsx-dev-runtime/index.d.ts  ← Development builds
+```
+
+These files override TypeScript's `LibraryManagedAttributes` type to wrap every non-callback, non-style prop `T` with `T | ((tokens: StyleTokens) => T)`. Props that are **never** widened (they keep their original types):
+- `key`, `ref`, `children`
+- Event handlers: `on*` (onPress, onChange, etc.)
+- Render props: `render*`, `handle*`
+- Style props: `style`, `*Style` (already handled by `StyleProp` patching)
+- Known callbacks: `keyExtractor`, `getItem`, `ListHeaderComponent`, etc.
+
+> **Manual setup** — If the postinstall script couldn't auto-patch your tsconfig (e.g. it has comments), add the settings manually:
+> ```json
+> // tsconfig.json
+> {
+>   "compilerOptions": {
+>     "jsx": "react-jsx",
+>     "jsxImportSource": "react-native-stylefn"
+>   }
+> }
+> ```
+
+---
+
+### Step 3 — Automatic: `stylefn.d.ts` type declarations (generated by Metro)
+
+**What happens:** When Metro starts (via `withStyleFn()` — set up in Step 5), it reads your `rn-stylefn.config.js` and `global.css`, then generates a `stylefn.d.ts` file that gives you **full TypeScript autocomplete** for all your theme keys.
+
+**Where it's generated:**
+```
+your-project/
+  └── node_modules/react-native-stylefn/stylefn.d.ts   ← auto-generated
+```
+
+A copy is also written to your project root as `stylefn.d.ts` if the library's installed location isn't writable.
+
+**What the generated file looks like:**
+```ts
+// Auto-generated by react-native-stylefn — do not edit
+export {};
+
+declare module 'react-native-stylefn' {
+  interface ThemeKeyOverrides {
+    spacing: '0' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | '10' | '12';
+    fontSize: '2xl' | '3xl' | 'base' | 'lg' | 'sm' | 'xl' | 'xs';
+    borderRadius: '2xl' | 'full' | 'lg' | 'md' | 'none' | 'sm' | 'xl';
+    color: 'accent' | 'background' | 'border' | 'primary' | 'primary-foreground' | ...;
+    shadow: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'none' | ...;
+    breakpoint: 'lg' | 'md' | 'sm' | 'xl';
+  }
+}
+```
+
+**How to reference it** — Create a `stylefn-env.d.ts` file (or any `.d.ts` file) in your project's root that references the generated declarations:
+
+```ts
+// stylefn-env.d.ts
+/// <reference types="react-native-stylefn/stylefn" />
+```
+
+Make sure this file is included in your `tsconfig.json`'s `include` pattern (e.g. `"include": ["**/*.ts", "**/*.tsx"]`).
+
+**Result:** Your IDE now suggests all your actual theme keys everywhere:
+```tsx
+t.theme.borderRadius['lg']     // ✅ autocomplete suggests 'sm', 'md', 'lg', 'xl', '2xl', 'full', 'none'
+t.theme.spacing[4]             // ✅ autocomplete suggests '0', '1', '2', '3', '4', '5', '6', '8', '10', '12'
+t.colors.primary               // ✅ autocomplete suggests 'primary', 'secondary', 'background', 'text', etc.
+t.breakpoint.up('md')          // ✅ autocomplete suggests 'sm', 'md', 'lg', 'xl'
+```
+
+> **Note:** This file is auto-generated every time Metro starts. Add `stylefn.d.ts` to your `.gitignore` (the Metro wrapper does this automatically).
+
+---
+
+### Step 4 — Manual: Add the Babel plugin
+
+Create or update your `babel.config.js` to include the stylefn Babel plugin:
 
 ```js
 // babel.config.js
 module.exports = {
-  presets: ['babel-preset-expo'],
+  presets: ['babel-preset-expo'],   // or your existing preset
   plugins: ['react-native-stylefn/babel-plugin'],
 };
 ```
 
-### 2. Add the Metro config wrapper
+**What the Babel plugin does** (at compile time):
+
+1. **Transforms style props** — wraps function/array expressions in `__resolveStyle()`:
+   ```
+   style={(t) => ({...})}  →  style={__resolveStyle((t) => ({...}))}
+   ```
+
+2. **Transforms non-style token props** — wraps arrow functions in non-callback props with `__resolveProp()`:
+   ```
+   width={({ orientation }) => ...}  →  width={__resolveProp(({ orientation }) => ...)}
+   ```
+
+3. **Auto-imports `react-native-stylefn/auto`** — injects a side-effect import that patches `StyleSheet.create` to support style functions at runtime.
+
+> **Important:** Clear your Metro cache after adding/changing the Babel config:
+> ```bash
+> npx expo start --clear
+> # or
+> npx react-native start --reset-cache
+> ```
+
+---
+
+### Step 5 — Manual: Add the Metro config wrapper
+
+Update your `metro.config.js` to wrap with `withStyleFn`:
 
 ```js
 // metro.config.js
@@ -54,11 +227,24 @@ const { withStyleFn } = require('react-native-stylefn/metro-config');
 const config = getDefaultConfig(__dirname);
 
 module.exports = withStyleFn(config, {
-  input: './global.css',  // your CSS variables file (optional)
+  input: './global.css',              // path to your CSS variables file (optional)
+  config: './rn-stylefn.config.js',   // path to your config file (optional, this is the default)
 });
 ```
 
-### 3. Wrap your app with `StyleProvider`
+**What `withStyleFn()` does:**
+
+1. **Parses `global.css`** — reads CSS custom properties from `:root` and `.dark` selectors
+2. **Creates a virtual module** — writes parsed CSS variables to `node_modules/react-native-stylefn/css-vars.js` and registers a Metro resolver so `react-native-stylefn/css-vars` resolves to it
+3. **Resolves the config file** — maps `rn-stylefn.config` imports to your config file
+4. **Generates `stylefn.d.ts`** — type declarations for autocomplete (Step 3 above)
+5. **Updates `.gitignore`** — adds `stylefn.d.ts` to your `.gitignore`
+
+---
+
+### Step 6 — Manual: Wrap your app with `StyleProvider`
+
+In your root layout or App component, wrap everything with `StyleProvider`:
 
 ```tsx
 import { StyleProvider } from 'react-native-stylefn';
@@ -76,7 +262,113 @@ export default function App() {
 }
 ```
 
-### 4. Write style functions
+`StyleProvider` subscribes to device state (dimensions, color scheme, accessibility) and updates the token store. Children always render with current token values.
+
+> **Note:** `insets` are optional but recommended. If you don't use `react-native-safe-area-context`, you can omit the `insets` prop.
+
+---
+
+### Step 7 — Optional: Create design token files
+
+#### `global.css` — CSS custom properties
+
+Create a `global.css` in your project root to define light/dark color palettes and design tokens:
+
+```css
+/* global.css */
+:root {
+  /* --color-* prefix → available as t.colors.* */
+  --color-background: #ffffff;
+  --color-text:       #111827;
+  --color-primary:    #3b82f6;
+
+  /* Generic variables → available for var() resolution in config */
+  --primary:            224 71% 51%;
+  --primary-foreground: 210 20% 98%;
+  --radius: 8;
+
+  /* Shadow levels → available for var() resolution in config */
+  --shadow-1: 0px 1px 2px 0px rgba(0, 0, 0, 0.05);
+}
+
+.dark {
+  --color-background: #0f172a;
+  --color-text:       #f8fafc;
+  --color-primary:    #60a5fa;
+
+  --primary:            216 91% 70%;
+  --primary-foreground: 221 39% 11%;
+  --radius: 8;
+
+  --shadow-1: 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
+}
+```
+
+#### `rn-stylefn.config.js` — Theme configuration
+
+Create a `rn-stylefn.config.js` in your project root to customize design tokens:
+
+```js
+// rn-stylefn.config.js
+module.exports = {
+  darkMode: 'system', // 'system' | 'manual'
+  theme: {
+    spacing: { 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32 },
+    fontSize: { xs: 10, sm: 12, base: 14, lg: 16, xl: 20, '2xl': 24 },
+    borderRadius: {
+      sm: 'calc(var(--radius) - 4px)',  // CSS expression → resolved from global.css
+      md: 'calc(var(--radius) - 2px)',
+      lg: 'var(--radius)',
+      full: 9999,
+    },
+    colors: {
+      primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
+      danger: '#ef4444',
+    },
+    screens: { sm: 0, md: 375, lg: 430, xl: 768 },
+  },
+};
+```
+
+Both files are **auto-loaded** — no manual imports required. Just create them and restart Metro.
+
+---
+
+### Setup Checklist
+
+Here's a summary checklist for verifying your setup:
+
+| # | What | File | Auto / Manual |
+|---|------|------|---------------|
+| 1 | `StyleProp<T>` patching | `node_modules/react-native/.../StyleSheetTypes.d.ts` | ✅ Auto (postinstall) |
+| 2 | `tsconfig.json` — `jsx` + `jsxImportSource` | `tsconfig.json` | ✅ Auto (postinstall) |
+| 3 | `stylefn.d.ts` — theme key autocomplete | `node_modules/react-native-stylefn/stylefn.d.ts` | ✅ Auto (Metro start) |
+| 4 | Babel plugin | `babel.config.js` | ✍️ Manual |
+| 5 | Metro config wrapper | `metro.config.js` | ✍️ Manual |
+| 6 | `StyleProvider` in root component | `app/_layout.tsx` or `App.tsx` | ✍️ Manual |
+| 7a | `global.css` (CSS variables) | `global.css` | ✍️ Optional |
+| 7b | `rn-stylefn.config.js` (theme config) | `rn-stylefn.config.js` | ✍️ Optional |
+| 7c | `stylefn-env.d.ts` (reference generated types) | `stylefn-env.d.ts` | ✍️ Optional |
+
+### Troubleshooting Setup
+
+| Problem | Solution |
+|---------|----------|
+| `StyleProp` doesn't accept functions | Run `npx react-native-stylefn setup` manually |
+| No autocomplete on `t.theme.*` | Check that `stylefn-env.d.ts` references the generated types, and restart your TS server |
+| `jsxImportSource` not in tsconfig | Add `"jsx": "react-jsx"` and `"jsxImportSource": "react-native-stylefn"` to `compilerOptions` |
+| Metro can't find `css-vars` module | Make sure `withStyleFn()` wraps your Metro config in `metro.config.js` |
+| Style functions not being resolved | Check that `react-native-stylefn/babel-plugin` is in your `babel.config.js` plugins |
+| Types broken after RN upgrade | Run `npx react-native-stylefn setup` — RN upgrades overwrite the patched type files |
+| Cache issues after config changes | Run `npx expo start --clear` or `npx react-native start --reset-cache` |
+
+---
+
+## Usage Examples
+
+Once setup is complete, you can start using style functions immediately.
+
+### 1. Write style functions
 
 ```tsx
 import { View, Text, ScrollView } from 'react-native';
@@ -104,7 +396,7 @@ import { View, Text, ScrollView } from 'react-native';
 />
 ```
 
-### 5. Mix functions and objects in arrays
+### 2. Mix functions and objects in arrays
 
 ```tsx
 <View style={[
@@ -114,7 +406,7 @@ import { View, Text, ScrollView } from 'react-native';
 ]} />
 ```
 
-### 6. Use with `StyleSheet.create`
+### 3. Use with `StyleSheet.create`
 
 ```tsx
 import { StyleSheet, View, Text } from 'react-native';
@@ -139,7 +431,7 @@ const styles = StyleSheet.create({
 </View>
 ```
 
-### 7. Use with Reanimated
+### 4. Use with Reanimated
 
 ```tsx
 import Animated, { useAnimatedStyle, withSpring, useSharedValue } from 'react-native-reanimated';
@@ -168,7 +460,7 @@ function AnimatedCard() {
 }
 ```
 
-### 8. Build custom components with style functions
+### 5. Build custom components with style functions
 
 ```tsx
 import { useStyleFn } from 'react-native-stylefn';
@@ -192,7 +484,7 @@ function StyledCard({ style, children }) {
 </StyledCard>
 ```
 
-### 9. Token functions in ANY prop (not just style)
+### 6. Token functions in ANY prop (not just style)
 
 Token functions aren't limited to `style` props — you can use them in **any** prop that accepts a value. The Babel plugin automatically detects arrow functions in non-callback props and resolves them with the current tokens.
 
@@ -253,7 +545,7 @@ width={({ orientation }) => ...}                                 __resolveProp c
 width={__resolveProp(({ orientation }) => ...)}                  returns the value
 ```
 
-### 10. `usePropsFn` hook — resolve multiple token props at once
+### 7. `usePropsFn` hook — resolve multiple token props at once
 
 For cases where you need explicit control, or when building wrapper components that pass resolved values to third-party libraries, use the `usePropsFn` hook:
 
@@ -311,7 +603,7 @@ function DrawingToolbar({ brushState }) {
 }
 ```
 
-### 11. `PropFunction<T>` (optional — for explicit typing)
+### 8. `PropFunction<T>` (optional — for explicit typing)
 
 With `jsxImportSource` configured (done automatically by postinstall), you **don't need** `PropFunction<T>` — plain types like `width: number` already accept token functions in JSX.
 

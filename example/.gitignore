@@ -43,4 +43,4 @@ app-example
 /android
 
 # react-native-stylefn generated
-.stylefn/
+stylefn.d.ts

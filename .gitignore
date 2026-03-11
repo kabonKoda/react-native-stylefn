@@ -84,3 +84,6 @@ android/generated
 
 # React Native Nitro Modules
 nitrogen/
+
+# react-native-stylefn generated
+stylefn.d.ts

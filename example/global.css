@@ -34,6 +34,10 @@
   --muted-foreground:      220 9% 46%;
   --accent:                220 14% 96%;
   --accent-foreground:     221 39% 11%;
+  --popover:               0 0% 100%;
+  --popover-foreground:    224 71% 4%;
+  --card:                  0 0% 100%;
+  --card-foreground:       224 71% 4%;
 
   /* ---- Design tokens ---- */
   --radius: 8;
@@ -70,6 +74,10 @@
   --muted-foreground:      218 11% 65%;
   --accent:                215 28% 17%;
   --accent-foreground:     210 20% 98%;
+  --popover:               224 71% 4%;
+  --popover-foreground:    210 20% 98%;
+  --card:                  224 71% 4%;
+  --card-foreground:       210 20% 98%;
 
   --radius: 8;
 

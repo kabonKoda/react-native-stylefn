@@ -13,4 +13,5 @@ const bobConfig = getConfig(baseConfig, {
 
 module.exports = withStyleFn(bobConfig, {
   input: './global.css',
+  config: '../rn-stylefn.config.js',
 });

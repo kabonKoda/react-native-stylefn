@@ -20,6 +20,7 @@ export type {
   StyleFnConfig,
   ThemeConfig,
   ThemeKeyRegistry,
+  ThemeKeyOverrides,
   CSSVariables,
   BreakpointName,
   BreakpointQuery,

@@ -1069,7 +1069,7 @@ function AppContent() {
         backgroundColor: t.colors.background,
       })}
       contentContainerStyle={(t) => {
-        console.log({ t });
+        console.log({ colors: t.colors });
         return {
           padding: t.theme.spacing[4],
           paddingTop: t.insets.top + t.theme.spacing[4],

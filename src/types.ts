@@ -1,33 +1,45 @@
 import type { ViewStyle, TextStyle, ImageStyle } from 'react-native';
 
 // =============================================================================
-// Theme Key Registry — known keys for TypeScript autocomplete
+// Theme Key Overrides — populated by stylefn.d.ts (auto-generated)
 //
-// Extend via module augmentation to add autocomplete for your custom keys:
+// The withStyleFn() metro config wrapper reads your rn-stylefn.config.js and
+// global.css, then generates stylefn.d.ts (in node_modules/react-native-stylefn/) which augments this
+// interface with the actual keys from your config. This gives you full
+// TypeScript autocomplete for all your theme tokens.
 //
-//   declare module 'react-native-stylefn' {
-//     interface ThemeKeyRegistry {
-//       spacing: '0' | '1' | '2' | ... | 'myCustomKey';
-//       color: 'primary' | ... | 'my-brand';
-//     }
-//   }
+// If no generated file exists, the defaults in ThemeKeyRegistry are used.
 // =============================================================================
 
 /**
- * Registry of known theme keys. Each property is a string union of key names
- * that appear in the default theme or common configs.
+ * Override interface — populated by the generated stylefn.d.ts
+ * (in node_modules/react-native-stylefn/).
+ * When empty (no generated file), ThemeKeyRegistry falls back to defaults.
+ */
+export interface ThemeKeyOverrides {}
+
+/**
+ * Conditional type: if ThemeKeyOverrides has property K, use its type;
+ * otherwise fall back to the Default type.
+ */
+type OverrideOr<K extends string, Default extends string> =
+  ThemeKeyOverrides extends Record<K, infer V> ? V & string : Default;
+
+/**
+ * Registry of known theme keys for TypeScript autocomplete.
  *
- * Users can extend this via module augmentation to get autocomplete for
- * custom keys defined in their rn-stylefn.config.js.
+ * When stylefn.d.ts is generated (by withStyleFn in metro.config.js),
+ * it augments ThemeKeyOverrides with the actual keys from your config + CSS.
+ * Those overrides take precedence over the defaults below.
  */
 export interface ThemeKeyRegistry {
-  spacing: '0' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | '10' | '12';
-  fontSize: 'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl';
-  borderRadius: 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
-  fontWeight: 'normal' | 'medium' | 'semibold' | 'bold';
-  opacity: '0' | '25' | '50' | '75' | '100';
-  shadow: 'sm' | 'md' | 'lg';
-  color:
+  spacing: OverrideOr<'spacing', '0' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | '10' | '12'>;
+  fontSize: OverrideOr<'fontSize', 'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl'>;
+  borderRadius: OverrideOr<'borderRadius', 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full'>;
+  fontWeight: OverrideOr<'fontWeight', 'normal' | 'medium' | 'semibold' | 'bold'>;
+  opacity: OverrideOr<'opacity', '0' | '25' | '50' | '75' | '100'>;
+  shadow: OverrideOr<'shadow', 'sm' | 'md' | 'lg'>;
+  color: OverrideOr<'color',
     | 'primary'
     | 'secondary'
     | 'danger'
@@ -37,8 +49,8 @@ export interface ThemeKeyRegistry {
     | 'surface'
     | 'border'
     | 'text'
-    | 'text-muted';
-  breakpoint: 'sm' | 'md' | 'lg' | 'xl';
+    | 'text-muted'>;
+  breakpoint: OverrideOr<'breakpoint', 'sm' | 'md' | 'lg' | 'xl'>;
 }
 
 /**
