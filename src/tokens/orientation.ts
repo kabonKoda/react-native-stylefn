@@ -1,11 +1,15 @@
-import type { Orientation } from '../types';
+import type { OrientationTokens } from '../types';
 
 /**
- * Derives orientation from screen dimensions.
+ * Derives orientation boolean flags from screen dimensions.
  */
 export function deriveOrientation(
   width: number,
   height: number
-): Orientation {
-  return width >= height ? 'landscape' : 'portrait';
+): OrientationTokens {
+  const landscape = width >= height;
+  return {
+    landscape,
+    portrait: !landscape,
+  };
 }

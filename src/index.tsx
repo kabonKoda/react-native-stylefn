@@ -18,10 +18,11 @@ export type {
   StyleFnConfig,
   ThemeConfig,
   CSSVariables,
-  Breakpoint,
-  Orientation,
+  BreakpointName,
+  BreakpointQuery,
+  OrientationTokens,
   ColorScheme,
-  PlatformOS,
+  PlatformTokens,
   ScreenInfo,
   Insets,
   UseThemeReturn,
@@ -35,8 +36,9 @@ export { defaultTheme, defaultConfig, defaultCSSVariables } from './config/defau
 
 // Token resolution (for advanced usage / testing)
 export { resolveTokens } from './tokens';
-export { deriveBreakpoint } from './tokens/breakpoint';
+export { createBreakpointQuery } from './tokens/breakpoint';
 export { deriveOrientation } from './tokens/orientation';
+export { derivePlatform } from './tokens/platform';
 
 // Store access (for advanced usage)
 export { getTokenStore } from './store';
@@ -46,6 +48,9 @@ export { applyPatch, isPatched } from './patch';
 
 // StyleSheet.create replacement with full style function support
 export { create } from './create';
+
+// Viewport unit helpers — pass '50vw' / '100vh' strings or use these functions
+export { vh, vw, calc } from './units';
 
 // Style resolver (used by Babel plugin at compile time)
 export { __resolveStyle } from './resolve';

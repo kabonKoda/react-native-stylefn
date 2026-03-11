@@ -67,7 +67,7 @@ function ResponsiveCard({
       style={(t) => ({
         backgroundColor: t.colors.surface,
         borderRadius: t.theme.borderRadius.lg,
-        padding: t.breakpoint === 'lg' || t.breakpoint === 'xl' ? 24 : 16,
+        padding: t.breakpoint.up('lg') ? 24 : 16,
         marginBottom: t.theme.spacing[3],
         borderWidth: 1,
         borderColor: t.colors.border,
@@ -76,7 +76,7 @@ function ResponsiveCard({
       <Text
         style={(t) => ({
           fontSize:
-            t.breakpoint === 'xl'
+            t.breakpoint.up('xl')
               ? t.theme.fontSize['2xl']
               : t.theme.fontSize.lg,
           fontWeight: t.theme.fontWeight.bold,
@@ -107,7 +107,7 @@ function OrientationDemo() {
   return (
     <View
       style={(t) => ({
-        flexDirection: t.orientation === 'landscape' ? 'row' as const : 'column' as const,
+        flexDirection: t.orientation.landscape ? 'row' as const : 'column' as const,
         gap: t.theme.spacing[3],
         marginBottom: t.theme.spacing[3],
       })}
@@ -270,9 +270,9 @@ function TokenInfoBar() {
       })}
     >
       {[
-        { label: 'Breakpoint', value: breakpoint },
-        { label: 'Orientation', value: orientation },
-        { label: 'Platform', value: platform },
+        { label: 'Breakpoint', value: breakpoint.current },
+        { label: 'Orientation', value: orientation.landscape ? 'landscape' : 'portrait' },
+        { label: 'Platform', value: platform.ios ? 'ios' : platform.android ? 'android' : platform.web ? 'web' : 'other' },
         { label: 'Screen', value: `${Math.round(screen.width)}×${Math.round(screen.height)}` },
         { label: 'Theme', value: colorScheme },
       ].map((item) => (
@@ -747,7 +747,7 @@ function CustomComponentDemo() {
         style={(t) => ({
           backgroundColor: t.dark ? '#1e293b' : '#eff6ff',
           borderRadius: t.theme.borderRadius.xl,
-          padding: t.breakpoint === 'xl' ? 32 : t.theme.spacing[4],
+          padding: t.breakpoint.up('xl') ? 32 : t.theme.spacing[4],
           borderWidth: 2,
           borderColor: t.theme.colors.primary,
         })}

@@ -1,14 +1,14 @@
-import { Platform } from 'react-native';
 import type {
   StyleTokens,
   TokenResolverParams,
   ThemeConfig,
-  PlatformOS,
 } from '../types';
 import { resolveTheme } from '../config/resolver';
 import { defaultCSSVariables } from '../config/defaults';
-import { deriveBreakpoint } from './breakpoint';
+import { createBreakpointQuery } from './breakpoint';
 import { deriveOrientation } from './orientation';
+import { derivePlatform } from './platform';
+import { evaluateCalc } from '../units';
 
 /**
  * Assembles the full StyleTokens object from all device/system state + config.
@@ -41,8 +41,6 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     ...(dark ? darkVars : lightVars),
   };
 
-  const platform = (Platform.OS ?? 'ios') as PlatformOS;
-
   return {
     theme: {
       spacing: theme.spacing,
@@ -56,7 +54,7 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     colors,
     dark,
     colorScheme,
-    breakpoint: deriveBreakpoint(screenWidth, theme.screens),
+    breakpoint: createBreakpointQuery(screenWidth, theme.screens),
     screen: {
       width: screenWidth,
       height: screenHeight,
@@ -64,16 +62,20 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
       fontScale,
     },
     orientation: deriveOrientation(screenWidth, screenHeight),
-    platform,
+    platform: derivePlatform(),
     insets,
     reducedMotion,
     fontScale,
     boldText,
     highContrast,
+    vw: (v: number) => (v / 100) * screenWidth,
+    vh: (v: number) => (v / 100) * screenHeight,
+    calc: (expr: string) => evaluateCalc(expr, { width: screenWidth, height: screenHeight, scale: screenScale, fontScale }),
   };
 }
 
-export { deriveBreakpoint } from './breakpoint';
+export { createBreakpointQuery } from './breakpoint';
 export { deriveOrientation } from './orientation';
+export { derivePlatform } from './platform';
 export { defaultAccessibility } from './accessibility';
 export type { AccessibilityTokens } from './accessibility';

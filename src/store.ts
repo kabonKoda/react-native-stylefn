@@ -1,5 +1,7 @@
 import type { StyleTokens } from './types';
 import { defaultTheme, defaultCSSVariables } from './config/defaults';
+import { createBreakpointQuery } from './tokens/breakpoint';
+import { evaluateCalc } from './units';
 
 /**
  * Static fallback tokens — no native API calls at module init time.
@@ -9,6 +11,8 @@ const fallbackColors: Record<string, string> = {
   ...defaultTheme.colors,
   ...defaultCSSVariables.light,
 };
+
+const fallbackScreen = { width: 375, height: 812, scale: 2, fontScale: 1 };
 
 const fallbackTokens: StyleTokens = {
   theme: {
@@ -23,15 +27,18 @@ const fallbackTokens: StyleTokens = {
   colors: fallbackColors,
   dark: false,
   colorScheme: 'light',
-  breakpoint: 'sm',
-  screen: { width: 375, height: 812, scale: 2, fontScale: 1 },
-  orientation: 'portrait',
-  platform: 'ios',
+  breakpoint: createBreakpointQuery(fallbackScreen.width, defaultTheme.screens),
+  screen: fallbackScreen,
+  orientation: { landscape: false, portrait: true },
+  platform: { ios: true, android: false, web: false, windows: false, macos: false },
   insets: { top: 0, bottom: 0, left: 0, right: 0 },
   reducedMotion: false,
   fontScale: 1,
   boldText: false,
   highContrast: false,
+  vw: (v: number) => (v / 100) * fallbackScreen.width,
+  vh: (v: number) => (v / 100) * fallbackScreen.height,
+  calc: (expr: string) => evaluateCalc(expr, fallbackScreen),
 };
 
 /**

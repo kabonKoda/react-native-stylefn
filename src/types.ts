@@ -49,14 +49,42 @@ export interface CSSVariables {
 }
 
 /**
- * Breakpoint names derived from screen width.
+ * Breakpoint name.
  */
-export type Breakpoint = 'sm' | 'md' | 'lg' | 'xl';
+export type BreakpointName = string;
 
 /**
- * Device orientation.
+ * Breakpoint object with up/down query methods.
+ *
+ * @example
+ * ```tsx
+ * t.breakpoint.up('md')   // true when screen >= md threshold
+ * t.breakpoint.down('lg') // true when screen < lg threshold
+ * t.breakpoint.current    // current breakpoint name, e.g. 'md'
+ * ```
  */
-export type Orientation = 'portrait' | 'landscape';
+export interface BreakpointQuery {
+  /** The current active breakpoint name */
+  current: BreakpointName;
+  /** True when screen width >= the given breakpoint threshold */
+  up: (name: BreakpointName) => boolean;
+  /** True when screen width < the given breakpoint threshold */
+  down: (name: BreakpointName) => boolean;
+}
+
+/**
+ * Device orientation — boolean flags.
+ *
+ * @example
+ * ```tsx
+ * t.orientation.landscape // true when width >= height
+ * t.orientation.portrait  // true when height > width
+ * ```
+ */
+export interface OrientationTokens {
+  landscape: boolean;
+  portrait: boolean;
+}
 
 /**
  * Color scheme.
@@ -64,9 +92,22 @@ export type Orientation = 'portrait' | 'landscape';
 export type ColorScheme = 'light' | 'dark';
 
 /**
- * Platform identifier.
+ * Platform boolean flags.
+ *
+ * @example
+ * ```tsx
+ * t.platform.ios     // true on iOS
+ * t.platform.android // true on Android
+ * t.platform.web     // true on Web
+ * ```
  */
-export type PlatformOS = 'ios' | 'android' | 'web';
+export interface PlatformTokens {
+  ios: boolean;
+  android: boolean;
+  web: boolean;
+  windows: boolean;
+  macos: boolean;
+}
 
 /**
  * Screen dimensions info.
@@ -112,17 +153,17 @@ export interface StyleTokens {
   /** Current color scheme */
   colorScheme: ColorScheme;
 
-  /** Current responsive breakpoint */
-  breakpoint: Breakpoint;
+  /** Responsive breakpoint queries */
+  breakpoint: BreakpointQuery;
 
   /** Screen dimensions */
   screen: ScreenInfo;
 
-  /** Device orientation */
-  orientation: Orientation;
+  /** Device orientation (boolean flags) */
+  orientation: OrientationTokens;
 
-  /** Current platform */
-  platform: PlatformOS;
+  /** Current platform (boolean flags) */
+  platform: PlatformTokens;
 
   /** Safe area insets */
   insets: Insets;
@@ -138,6 +179,25 @@ export interface StyleTokens {
 
   /** Whether high contrast is enabled (accessibility) */
   highContrast: boolean;
+
+  /**
+   * Convert a viewport-width value (0–100) to pixels.
+   * @example `t.vw(50)` → half the screen width in pixels
+   */
+  vw: (value: number) => number;
+
+  /**
+   * Convert a viewport-height value (0–100) to pixels.
+   * @example `t.vh(50)` → half the screen height in pixels
+   */
+  vh: (value: number) => number;
+
+  /**
+   * Evaluate a CSS-like calc expression with px, vh, vw units.
+   * Supports +, -, *, / and parentheses.
+   * @example `t.calc('100vw - 32px')` → screen width minus 32 pixels
+   */
+  calc: (expression: string) => number;
 }
 
 /**

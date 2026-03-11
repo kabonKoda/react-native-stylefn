@@ -3,9 +3,23 @@ const IMPORT_SOURCE = 'react-native-stylefn';
 const AUTO_IMPORT = 'react-native-stylefn/auto';
 const RESOLVE_FN = '__resolveStyle';
 const INJECTED_COMMENT = '__stylefn_injected__';
+const VIEWPORT_UNIT_RE = /^-?\d+\.?\d*(vh|vw)$/;
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 
 module.exports = function styleFnBabelPlugin({ types: t }) {
+  /**
+   * Returns true if an ObjectExpression contains any string literal values
+   * that look like viewport unit values (e.g. '50vw', '100vh').
+   */
+  function hasViewportUnits(node) {
+    if (!t.isObjectExpression(node)) return false;
+    return node.properties.some((prop) => {
+      if (!t.isObjectProperty(prop)) return false;
+      const val = prop.value;
+      return t.isStringLiteral(val) && VIEWPORT_UNIT_RE.test(val.value);
+    });
+  }
+
   function ensureResolveImport(programPath, state) {
     if (state.__stylefnResolveImported) return;
     state.__stylefnResolveImported = true;
@@ -112,8 +126,8 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
         const expr = value.expression;
         if (t.isJSXEmptyExpression(expr)) return;
 
-        // Skip plain object literals — they don't need resolution
-        if (t.isObjectExpression(expr)) return;
+        // Skip plain object literals unless they contain viewport units (e.g. '50vw', '100vh')
+        if (t.isObjectExpression(expr) && !hasViewportUnits(expr)) return;
 
         // Skip numeric literals (registered style IDs)
         if (t.isNumericLiteral(expr)) return;

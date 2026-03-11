@@ -82,8 +82,8 @@ import { View, Text, ScrollView } from 'react-native';
 
 <View style={(t) => ({
   backgroundColor: t.dark ? t.colors.background : t.colors.surface,
-  padding: t.breakpoint === 'lg' ? 24 : 12,
-  flexDirection: t.orientation === 'landscape' ? 'row' : 'column',
+  padding: t.breakpoint.up('lg') ? 24 : 12,
+  flexDirection: t.orientation.landscape ? 'row' : 'column',
 })} />
 
 <Text style={(t) => ({
@@ -107,7 +107,7 @@ import { View, Text, ScrollView } from 'react-native';
 <View style={[
   { flex: 1 },
   (t) => ({ backgroundColor: t.dark ? '#000' : '#fff' }),
-  (t) => t.breakpoint === 'sm' && { padding: 8 },
+  (t) => t.breakpoint.down('md') && { padding: 8 },
 ]} />
 ```
 
@@ -219,15 +219,65 @@ Every style function receives a `StyleTokens` object:
 | `colors` | `Record<string, string>` | Resolved color palette for the current color scheme |
 | `dark` | `boolean` | Whether dark mode is active |
 | `colorScheme` | `'light' \| 'dark'` | Current color scheme |
-| `breakpoint` | `'sm' \| 'md' \| 'lg' \| 'xl'` | Current responsive breakpoint |
+| `breakpoint` | `BreakpointQuery` | Breakpoint queries: `.current`, `.up(name)`, `.down(name)` |
 | `screen` | `{ width, height, scale, fontScale }` | Screen dimensions |
-| `orientation` | `'portrait' \| 'landscape'` | Device orientation |
-| `platform` | `'ios' \| 'android' \| 'web'` | Current platform |
+| `orientation` | `OrientationTokens` | Boolean flags: `.landscape`, `.portrait` |
+| `platform` | `PlatformTokens` | Boolean flags: `.ios`, `.android`, `.web`, `.windows`, `.macos` |
 | `insets` | `{ top, bottom, left, right }` | Safe area insets |
 | `reducedMotion` | `boolean` | User prefers reduced motion |
 | `fontScale` | `number` | Current font scale multiplier |
 | `boldText` | `boolean` | Bold text enabled (iOS) |
 | `highContrast` | `boolean` | High contrast enabled |
+
+### Breakpoint Queries
+
+```tsx
+// t.breakpoint.current → 'sm' | 'md' | 'lg' | 'xl' (active breakpoint name)
+// t.breakpoint.up('md')  → true when screen width >= md threshold (375dp)
+// t.breakpoint.down('lg') → true when screen width < lg threshold (430dp)
+
+<View style={(t) => ({
+  padding: t.breakpoint.up('lg') ? 24 : 12,
+  flexDirection: t.breakpoint.up('xl') ? 'row' : 'column',
+})} />
+```
+
+### Orientation Booleans
+
+```tsx
+// t.orientation.landscape → true when width >= height
+// t.orientation.portrait  → true when height > width
+
+<View style={(t) => ({
+  flexDirection: t.orientation.landscape ? 'row' : 'column',
+})} />
+```
+
+### Platform Booleans
+
+```tsx
+// t.platform.ios     → true on iOS
+// t.platform.android → true on Android
+// t.platform.web     → true on Web
+// t.platform.windows → true on Windows
+// t.platform.macos   → true on macOS
+
+<View style={(t) => ({
+  paddingTop: t.platform.ios ? 44 : 0,
+  fontFamily: t.platform.ios ? 'SF Pro' : 'Roboto',
+})} />
+```
+
+### Shadow Tokens
+
+Shadows use the `boxShadow` CSS string format (supported in React Native 0.76+):
+
+```tsx
+<View style={(t) => ({
+  ...t.theme.shadows.md,
+  // Expands to: { boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), ...' }
+})} />
+```
 
 ## Hooks
 
@@ -476,8 +526,9 @@ src/
 │   ├── resolver.ts    # deep merge: defaults + user config + extend
 │   └── cssParser.ts   # parses global.css variables
 ├── tokens/
-│   ├── breakpoint.ts  # sm/md/lg/xl from screen width
-│   ├── orientation.ts # portrait/landscape
+│   ├── breakpoint.ts  # breakpoint queries (up/down) from screen width
+│   ├── orientation.ts # portrait/landscape boolean flags
+│   ├── platform.ts    # ios/android/web/windows/macos boolean flags
 │   ├── accessibility.ts
 │   └── index.ts       # assembles full StyleTokens
 ├── hooks/
