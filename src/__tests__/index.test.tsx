@@ -148,7 +148,7 @@ describe('createBreakpointQuery', () => {
     it('returns true when screen width >= breakpoint threshold', () => {
       const bp = createBreakpointQuery(400, screens);
       expect(bp.up('sm')).toBe(true);
-      expect(bp.up('md')).toBe(true);  // 400 >= 375
+      expect(bp.up('md')).toBe(true); // 400 >= 375
       expect(bp.up('lg')).toBe(false); // 400 < 430
       expect(bp.up('xl')).toBe(false); // 400 < 768
     });
@@ -169,8 +169,8 @@ describe('createBreakpointQuery', () => {
       const bp = createBreakpointQuery(400, screens);
       expect(bp.down('sm')).toBe(false); // 400 >= 0
       expect(bp.down('md')).toBe(false); // 400 >= 375
-      expect(bp.down('lg')).toBe(true);  // 400 < 430
-      expect(bp.down('xl')).toBe(true);  // 400 < 768
+      expect(bp.down('lg')).toBe(true); // 400 < 430
+      expect(bp.down('xl')).toBe(true); // 400 < 768
     });
 
     it('returns false at exact breakpoint boundary', () => {
@@ -352,8 +352,12 @@ describe('Style resolution logic', () => {
 // =============================================================================
 
 import { vh, vw, calc } from '../units';
-import { parseViewportValue, resolveViewportUnits, evaluateCalc } from '../units';
-import { __resolveStyle } from '../resolve';
+import {
+  parseViewportValue,
+  resolveViewportUnits,
+  evaluateCalc,
+} from '../units';
+import { __resolveStyle, __resolveProp } from '../resolve';
 
 describe('vh / vw standalone helpers', () => {
   // Default fallback screen: 375×812
@@ -452,10 +456,7 @@ describe('__resolveStyle with viewport units', () => {
   });
 
   it('resolves viewport units in array styles', () => {
-    const styles = [
-      { width: '100vw' },
-      () => ({ height: '50vh' }),
-    ];
+    const styles = [{ width: '100vw' }, () => ({ height: '50vh' })];
     const result = __resolveStyle(styles) as any[];
     expect(result[0]).toEqual({ width: 375 });
     expect(result[1]).toEqual({ height: 406 });
@@ -604,5 +605,65 @@ describe('Shadow defaults use boxShadow', () => {
     expect(smShadow).not.toHaveProperty('shadowOpacity');
     expect(smShadow).not.toHaveProperty('shadowRadius');
     expect(smShadow).not.toHaveProperty('elevation');
+  });
+});
+
+// =============================================================================
+// __resolveProp: Token functions in non-style props
+// =============================================================================
+
+describe('__resolveProp', () => {
+  it('resolves a token function to its return value', () => {
+    const propFn = (t: any) => (t.orientation.landscape ? 266 : 200);
+    const result = __resolveProp(propFn);
+    // Default fallback is portrait (375×812), so landscape=false → 200
+    expect(result).toBe(200);
+  });
+
+  it('passes through static numbers unchanged', () => {
+    expect(__resolveProp(180)).toBe(180);
+  });
+
+  it('passes through static strings unchanged', () => {
+    expect(__resolveProp('hello')).toBe('hello');
+  });
+
+  it('passes through booleans unchanged', () => {
+    expect(__resolveProp(true)).toBe(true);
+    expect(__resolveProp(false)).toBe(false);
+  });
+
+  it('passes through null/undefined unchanged', () => {
+    expect(__resolveProp(null)).toBeNull();
+    expect(__resolveProp(undefined)).toBeUndefined();
+  });
+
+  it('passes through objects unchanged (no viewport unit conversion)', () => {
+    const obj = { foo: 'bar' };
+    expect(__resolveProp(obj)).toBe(obj);
+  });
+
+  it('resolves token function using breakpoint', () => {
+    const propFn = (t: any) => (t.breakpoint.up('lg') ? 3 : 2);
+    // Default fallback is 375px → md breakpoint, so up('lg') is false → 2
+    expect(__resolveProp(propFn)).toBe(2);
+  });
+
+  it('resolves token function using dark mode', () => {
+    const propFn = (t: any) => (t.dark ? 'dark-value' : 'light-value');
+    // Default is light mode
+    expect(__resolveProp(propFn)).toBe('light-value');
+  });
+
+  it('resolves token function using screen dimensions', () => {
+    const propFn = (t: any) => t.screen.width - 32;
+    // Default screen width is 375
+    expect(__resolveProp(propFn)).toBe(343);
+  });
+
+  it('does NOT apply viewport unit conversion (unlike __resolveStyle)', () => {
+    // __resolveProp should NOT convert strings like '50vw'
+    const propFn = () => '50vw';
+    expect(__resolveProp(propFn)).toBe('50vw');
   });
 });

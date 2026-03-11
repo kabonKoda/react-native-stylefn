@@ -27,3 +27,30 @@ export function __resolveStyle(value: unknown): unknown {
 
   return resolveViewportUnits(value);
 }
+
+/**
+ * Resolves a single prop value at render time.
+ * - If it's a function, calls it with the current token store.
+ * - Otherwise returns it as-is.
+ *
+ * Unlike __resolveStyle, this does NOT apply viewport unit conversion,
+ * since non-style props can be any type (number, string, boolean, etc.).
+ *
+ * Injected automatically by the Babel plugin into JSX non-style props
+ * that contain arrow/function expressions (excluding event handlers).
+ *
+ * @example
+ * ```tsx
+ * // Before (user code):
+ * <StrokePreview width={({ orientation }) => orientation.landscape ? 266 : 200} />
+ *
+ * // After (babel-transformed):
+ * <StrokePreview width={__resolveProp(({ orientation }) => orientation.landscape ? 266 : 200)} />
+ * ```
+ */
+export function __resolveProp(value: unknown): unknown {
+  if (typeof value === 'function') {
+    return value(getTokenStore());
+  }
+  return value;
+}

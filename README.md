@@ -14,6 +14,7 @@ Write style _functions_ instead of style objects. Every function receives rich c
 - ♿ **Accessibility tokens** — reduced motion, font scale, bold text, high contrast
 - ⚡ **Zero runtime overhead** — compile-time transform, no monkey-patching of React internals
 - 🧩 **Truly universal** — works on ALL components (built-in, third-party, custom) — any prop ending in `style` or `Style`
+- 🔮 **Token functions in any prop** — use `(t) => ...` in `width`, `height`, `columns`, or any non-callback prop
 - 📦 **Zero config** — works out of the box with sensible defaults
 - 🎯 **Full TypeScript** — automatic type patching, complete autocomplete on every token
 - 🔌 **Babel plugin** — transforms style props at build time, patches `StyleSheet.create` at runtime
@@ -189,6 +190,128 @@ function StyledCard({ style, children }) {
 </StyledCard>
 ```
 
+### 9. Token functions in ANY prop (not just style)
+
+Token functions aren't limited to `style` props — you can use them in **any** prop that accepts a value. The Babel plugin automatically detects arrow functions in non-callback props and resolves them with the current tokens.
+
+```tsx
+// ✅ These all work automatically — the Babel plugin wraps them for you
+
+<StrokePreview
+  width={({ orientation }) => orientation.landscape ? 266 : 200}
+  height={180}
+  isEraser={disabled}
+/>
+
+<Image
+  source={require('./avatar.png')}
+  width={({ breakpoint }) => breakpoint.up('lg') ? 120 : 80}
+  height={({ breakpoint }) => breakpoint.up('lg') ? 120 : 80}
+  borderRadius={({ breakpoint }) => breakpoint.up('lg') ? 60 : 40}
+/>
+
+<Grid
+  columns={({ breakpoint }) => breakpoint.up('xl') ? 4 : breakpoint.up('md') ? 2 : 1}
+  spacing={({ theme }) => theme.spacing[4]}
+/>
+
+<Canvas
+  backgroundColor={({ dark }) => dark ? '#1a1a2e' : '#ffffff'}
+  lineWidth={({ platform }) => platform.web ? 2 : 1}
+/>
+```
+
+> **Smart detection:** The plugin only wraps arrow/function expressions. Event handlers (`onPress`, `onChange`, etc.), render props (`renderItem`, `renderHeader`, etc.), and known callbacks (`keyExtractor`, `ref`, etc.) are **never** wrapped — they keep working as normal callbacks.
+
+#### How it works under the hood
+
+```
+                   Compile Time (Babel)                          Runtime
+                   ────────────────────                          ───────
+
+width={({ orientation }) => ...}                                 __resolveProp calls
+        │                                                        the function with
+        ▼                                                        current tokens and
+width={__resolveProp(({ orientation }) => ...)}                  returns the value
+```
+
+### 10. `usePropsFn` hook — resolve multiple token props at once
+
+For cases where you need explicit control, or when building wrapper components that pass resolved values to third-party libraries, use the `usePropsFn` hook:
+
+```tsx
+import { usePropsFn } from 'react-native-stylefn';
+
+function StrokePreview({ brushState, isEraser }) {
+  const { width, height, columns } = usePropsFn({
+    width: ({ orientation }) => orientation.landscape ? 266 : 200,
+    height: 180,  // static values pass through unchanged
+    columns: ({ breakpoint }) => breakpoint.up('lg') ? 3 : 2,
+  });
+
+  return <Canvas width={width} height={height} columns={columns} />;
+}
+```
+
+```tsx
+// Great for third-party components that don't go through the Babel plugin
+function ResponsiveSlider() {
+  const { sliderWidth, thumbSize, trackHeight } = usePropsFn({
+    sliderWidth: ({ screen }) => screen.width - 32,
+    thumbSize: ({ breakpoint }) => breakpoint.up('md') ? 24 : 16,
+    trackHeight: ({ breakpoint }) => breakpoint.up('md') ? 6 : 4,
+  });
+
+  return (
+    <Slider
+      style={{ width: sliderWidth }}
+      thumbSize={thumbSize}
+      trackHeight={trackHeight}
+    />
+  );
+}
+```
+
+```tsx
+// Use with color picker, drawing tools, or any responsive component
+function DrawingToolbar({ brushState }) {
+  const { panelWidth, swatchSize, previewSize } = usePropsFn({
+    panelWidth: ({ orientation }) => orientation.landscape ? 360 : 280,
+    swatchSize: ({ breakpoint }) => breakpoint.up('lg') ? 32 : 26,
+    previewSize: ({ orientation, breakpoint }) => ({
+      width: orientation.landscape ? 266 : 200,
+      height: breakpoint.up('lg') ? 200 : 180,
+    }),
+  });
+
+  return (
+    <View style={{ width: panelWidth }}>
+      <Swatches swatchStyle={{ width: swatchSize, height: swatchSize }} />
+      <StrokePreview width={previewSize.width} height={previewSize.height} />
+    </View>
+  );
+}
+```
+
+### 11. Type your own components with `PropFunction<T>`
+
+Use the `PropFunction<T>` type to declare props that accept either a static value or a token function:
+
+```tsx
+import type { PropFunction } from 'react-native-stylefn';
+
+interface StrokePreviewProps {
+  brushState: BrushState;
+  width: PropFunction<number>;
+  height: PropFunction<number>;
+  isEraser?: boolean;
+}
+
+// Now consumers can pass either:
+<StrokePreview width={266} height={180} />                                    // static
+<StrokePreview width={({ orientation }) => orientation.landscape ? 266 : 200} height={180} /> // dynamic
+```
+
 ## How Types Work — Universal & Automatic
 
 When you install `react-native-stylefn`, the **postinstall script** automatically patches React Native's `StyleProp<T>` type definition to include style functions:
@@ -317,6 +440,26 @@ function SettingsScreen() {
   );
 }
 ```
+
+### `usePropsFn()`
+
+Resolve an object of props where any value can be a token function. Re-renders when tokens change (orientation, breakpoint, dark mode, etc.):
+
+```tsx
+import { usePropsFn } from 'react-native-stylefn';
+
+function ResponsivePanel() {
+  const { width, height, columns } = usePropsFn({
+    width: ({ orientation }) => orientation.landscape ? 360 : 280,
+    height: 180,  // static values pass through unchanged
+    columns: ({ breakpoint }) => breakpoint.up('lg') ? 3 : 2,
+  });
+
+  return <Grid width={width} height={height} columns={columns} />;
+}
+```
+
+This is especially useful for passing resolved values to third-party components that don't go through the Babel plugin.
 
 ## Configuration
 
@@ -494,15 +637,18 @@ style={(t) => ({...})}                                     __resolveStyle calls
 style={__resolveStyle((t) => ({...}))}                     the singleton store
 ```
 
-### The Babel plugin does two things:
+### The Babel plugin does three things:
 
 1. **Transforms JSX style props** — wraps function/array/variable expressions in `__resolveStyle()` at compile time. Plain object literals (`style={{ padding: 10 }}`) are left untouched.
 
-2. **Injects `import 'react-native-stylefn/auto'`** — patches `StyleSheet.create` so it accepts style functions alongside static styles.
+2. **Transforms non-style token props** — detects arrow/function expressions in any non-callback prop (e.g. `width`, `height`, `columns`) and wraps them in `__resolveProp()`. Event handlers (`on*`), render props (`render*`), and known callbacks (`keyExtractor`, `ref`, etc.) are never touched.
+
+3. **Injects `import 'react-native-stylefn/auto'`** — patches `StyleSheet.create` so it accepts style functions alongside static styles.
 
 ### At runtime:
 
-- **`__resolveStyle(value)`** — if the value is a function, calls it with the current token store; if it's an array, maps over it resolving any functions; otherwise returns as-is.
+- **`__resolveStyle(value)`** — if the value is a function, calls it with the current token store and resolves viewport units; if it's an array, maps over it resolving any functions; otherwise returns as-is.
+- **`__resolveProp(value)`** — if the value is a function, calls it with the current token store and returns the raw result (no viewport unit conversion). Used for non-style props like `width`, `height`, `columns`.
 - **`StyleProvider`** — subscribes to device state (dimensions, color scheme, accessibility) and updates the token store synchronously via `useMemo` so children always render with current values.
 - **Token store** — a synchronous singleton, always readable from anywhere.
 
@@ -514,7 +660,7 @@ Patching `React.createElement` or `jsx`/`jsxs` is fragile — it breaks with Rea
 
 ```
 src/
-├── resolve.ts         # __resolveStyle — called at render time to resolve functions
+├── resolve.ts         # __resolveStyle + __resolveProp — resolve style/prop functions
 ├── patch.ts           # patches StyleSheet.create only
 ├── auto.ts            # side-effect import that calls applyPatch()
 ├── store.ts           # singleton token store (get/set/subscribe)
@@ -533,13 +679,14 @@ src/
 │   └── index.ts       # assembles full StyleTokens
 ├── hooks/
 │   ├── useStyleFn.ts  # access tokens in component logic
-│   └── useTheme.ts    # manual dark mode toggle
-├── types.ts           # full TypeScript types
+│   ├── useTheme.ts    # manual dark mode toggle
+│   └── usePropsFn.ts  # resolve token functions in any prop
+├── types.ts           # full TypeScript types (StyleTokens, PropFunction, etc.)
 ├── stylefn.d.ts       # type augmentation for RN components
 └── index.tsx          # public exports
 
 babel-plugin/
-└── index.js           # compile-time transform + auto-import injection
+└── index.js           # compile-time transform (style + prop + auto-import)
 
 scripts/
 └── setup.js           # postinstall: patches RN's StyleProp type
@@ -554,8 +701,10 @@ scripts/
 | `StyleProvider` | Provider component — wraps your app |
 | `useStyleFn()` | Access tokens in component logic |
 | `useTheme()` | Manual dark mode control |
+| `usePropsFn()` | Resolve token functions in any prop (hook) |
 | `create()` | StyleSheet.create replacement with style function support |
-| `__resolveStyle()` | Style resolver (used by Babel plugin, can be used manually) |
+| `__resolveStyle()` | Style resolver for style props (used by Babel plugin) |
+| `__resolveProp()` | Prop resolver for non-style props (used by Babel plugin) |
 | `getTokenStore()` | Direct access to the token store singleton |
 | `applyPatch()` | Manually apply the StyleSheet.create patch |
 | `resolveConfig()` | Resolve user config with defaults |
@@ -563,6 +712,16 @@ scripts/
 | `defaultTheme` | Built-in theme defaults |
 | `defaultConfig` | Built-in config defaults |
 | `defaultCSSVariables` | Built-in CSS variable defaults |
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `StyleTokens` | Full token store shape passed to every token function |
+| `StyleFunction<S>` | Style function type: `(tokens: StyleTokens) => S` |
+| `StyleProp<S>` | Style prop: static, function, or array of both |
+| `PropFunction<T>` | A prop value that can be static or a token function: `T \| (tokens: StyleTokens) => T` |
+| `TokenProp<T>` | Alias for `PropFunction<T>` (from `usePropsFn`) |
 
 ## License
 

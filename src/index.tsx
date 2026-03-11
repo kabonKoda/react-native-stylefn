@@ -9,6 +9,8 @@ export type { StyleProviderProps } from './provider';
 // Hooks
 export { useStyleFn } from './hooks/useStyleFn';
 export { useTheme } from './hooks/useTheme';
+export { usePropsFn } from './hooks/usePropsFn';
+export type { TokenProp } from './hooks/usePropsFn';
 
 // Types — exported for consumers to use in their own code
 export type {
@@ -27,12 +29,17 @@ export type {
   Insets,
   UseThemeReturn,
   RNStyle,
+  PropFunction,
 } from './types';
 
 // Config utilities (for advanced usage)
 export { resolveConfig, resolveTheme } from './config/resolver';
 export { parseCSSVariables, loadCSSVariables } from './config/cssParser';
-export { defaultTheme, defaultConfig, defaultCSSVariables } from './config/defaults';
+export {
+  defaultTheme,
+  defaultConfig,
+  defaultCSSVariables,
+} from './config/defaults';
 
 // Token resolution (for advanced usage / testing)
 export { resolveTokens } from './tokens';
@@ -54,3 +61,6 @@ export { vh, vw, calc } from './units';
 
 // Style resolver (used by Babel plugin at compile time)
 export { __resolveStyle } from './resolve';
+
+// Prop resolver (used by Babel plugin for non-style token props)
+export { __resolveProp } from './resolve';

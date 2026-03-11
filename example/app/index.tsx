@@ -16,7 +16,12 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { useStyleFn, useTheme } from 'react-native-stylefn';
+import {
+  useStyleFn,
+  useTheme,
+  usePropsFn,
+  type PropFunction,
+} from 'react-native-stylefn';
 
 // =============================================================================
 // Example: Dark Mode Toggle
@@ -75,10 +80,9 @@ function ResponsiveCard({
     >
       <Text
         style={(t) => ({
-          fontSize:
-            t.breakpoint.up('xl')
-              ? t.theme.fontSize['2xl']
-              : t.theme.fontSize.lg,
+          fontSize: t.breakpoint.up('xl')
+            ? t.theme.fontSize['2xl']
+            : t.theme.fontSize.lg,
           fontWeight: t.theme.fontWeight.bold,
           color: t.colors.text,
           marginBottom: t.theme.spacing[2],
@@ -107,7 +111,9 @@ function OrientationDemo() {
   return (
     <View
       style={(t) => ({
-        flexDirection: t.orientation.landscape ? 'row' as const : 'column' as const,
+        flexDirection: t.orientation.landscape
+          ? ('row' as const)
+          : ('column' as const),
         gap: t.theme.spacing[3],
         marginBottom: t.theme.spacing[3],
       })}
@@ -271,9 +277,24 @@ function TokenInfoBar() {
     >
       {[
         { label: 'Breakpoint', value: breakpoint.current },
-        { label: 'Orientation', value: orientation.landscape ? 'landscape' : 'portrait' },
-        { label: 'Platform', value: platform.ios ? 'ios' : platform.android ? 'android' : platform.web ? 'web' : 'other' },
-        { label: 'Screen', value: `${Math.round(screen.width)}×${Math.round(screen.height)}` },
+        {
+          label: 'Orientation',
+          value: orientation.landscape ? 'landscape' : 'portrait',
+        },
+        {
+          label: 'Platform',
+          value: platform.ios
+            ? 'ios'
+            : platform.android
+            ? 'android'
+            : platform.web
+            ? 'web'
+            : 'other',
+        },
+        {
+          label: 'Screen',
+          value: `${Math.round(screen.width)}×${Math.round(screen.height)}`,
+        },
         { label: 'Theme', value: colorScheme },
       ].map((item) => (
         <View
@@ -314,7 +335,7 @@ function TokenInfoBar() {
 
 function ColorPalette() {
   const { theme } = useStyleFn();
-  console.log({ theme })
+  console.log({ theme });
   const colorEntries = Object.entries(theme.colors);
 
   return (
@@ -411,12 +432,11 @@ const sheetStyles = StyleSheet.create({
 function StyleSheetDemo() {
   return (
     <View style={sheetStyles.card}>
-      <Text style={sheetStyles.cardTitle}>
-        StyleSheet.create ✓
-      </Text>
+      <Text style={sheetStyles.cardTitle}>StyleSheet.create ✓</Text>
       <Text style={sheetStyles.cardDescription}>
         StyleSheet.create is patched to accept style functions. Static styles
-        use StyleSheet.create normally. Dynamic functions resolve at render time.
+        use StyleSheet.create normally. Dynamic functions resolve at render
+        time.
       </Text>
       <View style={sheetStyles.badge}>
         <Text style={sheetStyles.badgeText}>STATIC BADGE</Text>
@@ -548,7 +568,9 @@ function AnimatedStyleDemo() {
             }}
           >
             useAnimatedStyle + useStyleFn() tokens{'\n'}
-            {reducedMotion ? '(reduced motion — no float)' : '(floating animation active)'}
+            {reducedMotion
+              ? '(reduced motion — no float)'
+              : '(floating animation active)'}
           </Text>
         </Animated.View>
       </Pressable>
@@ -736,8 +758,8 @@ function CustomComponentDemo() {
             color: t.colors['text-muted'],
           })}
         >
-          This card resolves style functions internally via useStyleFn(),
-          shows the generated style JSON, then passes it to the native View.
+          This card resolves style functions internally via useStyleFn(), shows
+          the generated style JSON, then passes it to the native View.
         </StyledText>
       </StyledCard>
 
@@ -766,6 +788,290 @@ function CustomComponentDemo() {
 }
 
 // =============================================================================
+// Example: Token Functions in Any Prop (Babel auto-resolved)
+// =============================================================================
+
+/**
+ * A simple box component that accepts width/height/borderRadius as numbers.
+ * This simulates a third-party or custom component with non-style props.
+ */
+/**
+ * A simple box component — typed with PropFunction<T> to accept
+ * both static values and token functions from the outside.
+ *
+ * Internally, props are always resolved numbers/strings at runtime
+ * because the Babel plugin transforms the call site.
+ * We use `as number` / `as string` to tell TypeScript this.
+ */
+function ResponsiveBox({
+  width,
+  height,
+  borderRadius,
+  color,
+  label,
+}: {
+  width: PropFunction<number>;
+  height: PropFunction<number>;
+  borderRadius: PropFunction<number>;
+  color: PropFunction<string>;
+  label: string;
+}) {
+  // At runtime these are always resolved values (number/string)
+  // because the Babel plugin wraps token functions with __resolveProp()
+  const w = width as number;
+  const h = height as number;
+  const br = borderRadius as number;
+  const bg = color as string;
+
+  return (
+    <View
+      style={{
+        width: w,
+        height: h,
+        borderRadius: br,
+        backgroundColor: bg,
+        alignItems: 'center' as const,
+        justifyContent: 'center' as const,
+      }}
+    >
+      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' as const }}>
+        {label}
+      </Text>
+      <Text
+        style={{ color: 'rgba(255,255,255,0.7)', fontSize: 9, marginTop: 2 }}
+      >
+        {w}×{h}
+      </Text>
+    </View>
+  );
+}
+
+function TokenPropsDemo() {
+  const tokens = useStyleFn();
+
+  return (
+    <View
+      style={(t) => ({
+        marginBottom: t.theme.spacing[3],
+      })}
+    >
+      <Text
+        style={(t) => ({
+          fontSize: t.theme.fontSize.lg,
+          fontWeight: t.theme.fontWeight.bold,
+          color: t.colors.text,
+          marginBottom: t.theme.spacing[2],
+        })}
+      >
+        Token Props (any prop) ✓
+      </Text>
+
+      <View
+        style={(t) => ({
+          backgroundColor: t.colors.surface,
+          borderRadius: t.theme.borderRadius.lg,
+          padding: t.theme.spacing[4],
+          borderWidth: 1,
+          borderColor: t.colors.border,
+          marginBottom: t.theme.spacing[2],
+        })}
+      >
+        <Text
+          style={(t) => ({
+            fontSize: t.theme.fontSize.sm,
+            color: t.colors['text-muted'],
+            marginBottom: t.theme.spacing[3],
+          })}
+        >
+          These boxes use token functions directly in
+          width/height/borderRadius/color props. The Babel plugin auto-wraps
+          them with __resolveProp(). Rotate your device to see changes!
+        </Text>
+
+        <View
+          style={{
+            flexDirection: 'row' as const,
+            gap: 8,
+            flexWrap: 'wrap' as const,
+          }}
+        >
+          {/* Token functions in width/height props — auto-resolved by Babel */}
+          <ResponsiveBox
+            width={({ orientation }) => (orientation.landscape ? 120 : 80)}
+            height={({ orientation }) => (orientation.landscape ? 80 : 120)}
+            borderRadius={({ breakpoint }) => (breakpoint.up('lg') ? 16 : 8)}
+            color={({ dark }) => (dark ? '#3b82f6' : '#2563eb')}
+            label="Orientation"
+          />
+          <ResponsiveBox
+            width={({ breakpoint }) => (breakpoint.up('lg') ? 120 : 80)}
+            height={80}
+            borderRadius={({ breakpoint }) => (breakpoint.up('lg') ? 60 : 40)}
+            color={({ dark }) => (dark ? '#8b5cf6' : '#7c3aed')}
+            label="Breakpoint"
+          />
+          <ResponsiveBox
+            width={80}
+            height={80}
+            borderRadius={8}
+            color={({ dark }) => (dark ? '#22c55e' : '#16a34a')}
+            label="Dark mode"
+          />
+        </View>
+      </View>
+
+      {/* Show current token values */}
+      <View
+        style={(t) => ({
+          backgroundColor: t.dark ? '#0f172a' : '#f1f5f9',
+          borderRadius: t.theme.borderRadius.md,
+          padding: t.theme.spacing[3],
+        })}
+      >
+        <Text
+          style={(t) => ({
+            fontSize: 10,
+            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+            color: t.dark ? '#93c5fd' : '#3b82f6',
+          })}
+        >
+          {`orientation: ${
+            tokens.orientation.landscape ? 'landscape' : 'portrait'
+          }\n`}
+          {`breakpoint: ${tokens.breakpoint.current}\n`}
+          {`dark: ${tokens.dark}`}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// =============================================================================
+// Example: usePropsFn Hook
+// =============================================================================
+
+function UsePropsFnDemo() {
+  // Resolve multiple responsive prop values using the usePropsFn hook
+  const { panelWidth, boxSize, columns, label } = usePropsFn({
+    panelWidth: ({ orientation }) => (orientation.landscape ? 360 : 280),
+    boxSize: ({ breakpoint }) => (breakpoint.up('lg') ? 48 : 32),
+    columns: ({ breakpoint }) =>
+      breakpoint.up('xl') ? 4 : breakpoint.up('md') ? 3 : 2,
+    label: ({ dark }) => (dark ? '🌙 Dark' : '☀️ Light'),
+  });
+
+  return (
+    <View
+      style={(t) => ({
+        marginBottom: t.theme.spacing[3],
+      })}
+    >
+      <Text
+        style={(t) => ({
+          fontSize: t.theme.fontSize.lg,
+          fontWeight: t.theme.fontWeight.bold,
+          color: t.colors.text,
+          marginBottom: t.theme.spacing[2],
+        })}
+      >
+        usePropsFn Hook ✓
+      </Text>
+
+      <View
+        style={(t) => ({
+          backgroundColor: t.colors.surface,
+          borderRadius: t.theme.borderRadius.lg,
+          padding: t.theme.spacing[4],
+          borderWidth: 1,
+          borderColor: t.colors.border,
+        })}
+      >
+        <Text
+          style={(t) => ({
+            fontSize: t.theme.fontSize.sm,
+            color: t.colors['text-muted'],
+            marginBottom: t.theme.spacing[3],
+          })}
+        >
+          Panel width, box size, and column count all react to
+          orientation/breakpoint:
+        </Text>
+
+        {/* Show resolved values */}
+        <View
+          style={{
+            flexDirection: 'row' as const,
+            flexWrap: 'wrap' as const,
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          {[
+            { key: 'panelWidth', value: `${panelWidth}px` },
+            { key: 'boxSize', value: `${boxSize}px` },
+            { key: 'columns', value: `${columns}` },
+            { key: 'label', value: label },
+          ].map((item) => (
+            <View
+              key={item.key}
+              style={(t) => ({
+                backgroundColor: t.dark ? '#1e293b' : '#e2e8f0',
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: t.theme.borderRadius.md,
+              })}
+            >
+              <Text
+                style={(t) => ({
+                  fontSize: t.theme.fontSize.xs,
+                  color: t.colors['text-muted'],
+                })}
+              >
+                {item.key}
+              </Text>
+              <Text
+                style={(t) => ({
+                  fontSize: t.theme.fontSize.sm,
+                  color: t.colors.text,
+                  fontWeight: t.theme.fontWeight.semibold,
+                })}
+              >
+                {item.value}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Render a grid using the resolved values */}
+        <View style={{ width: panelWidth, maxWidth: '100%' }}>
+          <View
+            style={{
+              flexDirection: 'row' as const,
+              flexWrap: 'wrap' as const,
+              gap: 4,
+            }}
+          >
+            {Array.from({ length: columns * 2 }).map((_, i) => (
+              <View
+                key={i}
+                style={(t) => ({
+                  width: boxSize,
+                  height: boxSize,
+                  borderRadius: boxSize / 4,
+                  backgroundColor: t.dark
+                    ? `hsl(${(i * 40) % 360}, 60%, 40%)`
+                    : `hsl(${(i * 40) % 360}, 70%, 60%)`,
+                })}
+              />
+            ))}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// =============================================================================
 // Main App
 // =============================================================================
 
@@ -777,12 +1083,12 @@ function AppContent() {
         backgroundColor: t.colors.background,
       })}
       contentContainerStyle={(t) => {
-        console.log({ t })
-        return{
+        console.log({ t });
+        return {
           padding: t.theme.spacing[4],
           paddingTop: t.insets.top + t.theme.spacing[4],
           paddingBottom: t.insets.bottom + t.theme.spacing[6],
-        }
+        };
       }}
     >
       <Text
@@ -814,6 +1120,8 @@ function AppContent() {
         description="This card adjusts its padding and font sizes based on the current breakpoint. Try resizing your screen or rotating your device."
       />
       <AccessibilityDemo />
+      <TokenPropsDemo />
+      <UsePropsFnDemo />
       <AnimatedStyleDemo />
       <CustomComponentDemo />
       <ArrayStyleDemo />

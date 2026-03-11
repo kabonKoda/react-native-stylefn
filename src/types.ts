@@ -208,7 +208,9 @@ export type RNStyle = ViewStyle | TextStyle | ImageStyle;
 /**
  * Style function that receives tokens and returns a style object.
  */
-export type StyleFunction<S = RNStyle> = (tokens: StyleTokens) => S | false | null | undefined;
+export type StyleFunction<S = RNStyle> = (
+  tokens: StyleTokens
+) => S | false | null | undefined;
 
 /**
  * A style prop value — can be a plain style, a style function, or an array of both.
@@ -220,6 +222,29 @@ export type StyleProp<S = RNStyle> =
   | false
   | null
   | undefined;
+
+/**
+ * A prop value that can be either a static value or a function receiving tokens.
+ *
+ * Use this to type props in your own components that accept token functions.
+ *
+ * @example
+ * ```tsx
+ * interface MyComponentProps {
+ *   width: PropFunction<number>;
+ *   label: PropFunction<string>;
+ *   visible?: PropFunction<boolean>;
+ * }
+ *
+ * // Usage:
+ * <MyComponent
+ *   width={({ orientation }) => orientation.landscape ? 266 : 200}
+ *   label={({ dark }) => dark ? 'Dark Mode' : 'Light Mode'}
+ *   visible={({ breakpoint }) => breakpoint.up('md')}
+ * />
+ * ```
+ */
+export type PropFunction<T> = T | ((tokens: StyleTokens) => T);
 
 /**
  * Parameters passed into the token resolver.
