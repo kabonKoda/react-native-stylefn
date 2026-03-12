@@ -29,6 +29,7 @@ export type {
   OrientationTokens,
   ColorScheme,
   PlatformTokens,
+  DeviceTokens,
   ScreenInfo,
   Insets,
   UseThemeReturn,
@@ -65,6 +66,7 @@ export { resolveTokens } from './tokens';
 export { createBreakpointQuery } from './tokens/breakpoint';
 export { deriveOrientation } from './tokens/orientation';
 export { derivePlatform } from './tokens/platform';
+export { deriveDevice, defaultDevice } from './tokens/device';
 
 // Store access (for advanced usage)
 export { getTokenStore } from './store';

@@ -1,6 +1,7 @@
 import type { StyleTokens } from './types';
 import { defaultTheme, defaultCSSVariables } from './config/defaults';
 import { createBreakpointQuery } from './tokens/breakpoint';
+import { defaultDevice } from './tokens/device';
 import { evaluateCalc } from './units';
 
 /**
@@ -39,6 +40,7 @@ const fallbackTokens: StyleTokens = {
     windows: false,
     macos: false,
   },
+  device: defaultDevice,
   insets: { top: 0, bottom: 0, left: 0, right: 0 },
   reducedMotion: false,
   fontScale: 1,
@@ -46,7 +48,8 @@ const fallbackTokens: StyleTokens = {
   highContrast: false,
   vw: (v: number) => (v / 100) * fallbackScreen.width,
   vh: (v: number) => (v / 100) * fallbackScreen.height,
-  calc: (expr: string) => evaluateCalc(expr, fallbackScreen, DEFAULT_INLINE_REM),
+  calc: (expr: string) =>
+    evaluateCalc(expr, fallbackScreen, DEFAULT_INLINE_REM),
   rem: (v: number) => v * DEFAULT_INLINE_REM,
   inlineRem: DEFAULT_INLINE_REM,
 };

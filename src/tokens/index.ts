@@ -10,6 +10,7 @@ import {
 import { createBreakpointQuery } from './breakpoint';
 import { deriveOrientation } from './orientation';
 import { derivePlatform } from './platform';
+import { deriveDevice } from './device';
 import { evaluateCalc } from '../units';
 
 /**
@@ -48,8 +49,16 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
 
   // Resolve theme values — CSS expressions are evaluated here (with rem support)
   const resolvedSpacing = resolveNumericMap(theme.spacing, rawVars, inlineRem);
-  const resolvedFontSize = resolveNumericMap(theme.fontSize, rawVars, inlineRem);
-  const resolvedBorderRadius = resolveNumericMap(theme.borderRadius, rawVars, inlineRem);
+  const resolvedFontSize = resolveNumericMap(
+    theme.fontSize,
+    rawVars,
+    inlineRem
+  );
+  const resolvedBorderRadius = resolveNumericMap(
+    theme.borderRadius,
+    rawVars,
+    inlineRem
+  );
   const resolvedOpacity = resolveNumericMap(theme.opacity, rawVars, inlineRem);
 
   // Resolve colors — flatten nested objects and evaluate hsl()/var()
@@ -93,6 +102,7 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     },
     orientation: deriveOrientation(screenWidth, screenHeight),
     platform: derivePlatform(),
+    device: deriveDevice(),
     insets,
     reducedMotion,
     fontScale,
@@ -101,12 +111,16 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     vw: (v: number) => (v / 100) * screenWidth,
     vh: (v: number) => (v / 100) * screenHeight,
     calc: (expr: string) =>
-      evaluateCalc(expr, {
-        width: screenWidth,
-        height: screenHeight,
-        scale: screenScale,
-        fontScale,
-      }, inlineRem),
+      evaluateCalc(
+        expr,
+        {
+          width: screenWidth,
+          height: screenHeight,
+          scale: screenScale,
+          fontScale,
+        },
+        inlineRem
+      ),
     rem: (v: number) => v * inlineRem,
     inlineRem,
   };
@@ -115,5 +129,6 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
 export { createBreakpointQuery } from './breakpoint';
 export { deriveOrientation } from './orientation';
 export { derivePlatform } from './platform';
+export { deriveDevice, defaultDevice } from './device';
 export { defaultAccessibility } from './accessibility';
 export type { AccessibilityTokens } from './accessibility';

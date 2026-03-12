@@ -215,6 +215,57 @@ export interface PlatformTokens {
 }
 
 /**
+ * Device information from expo-device.
+ *
+ * Provides hardware/software info and convenience boolean flags
+ * for device form factor. Requires `expo-device` as an optional dependency.
+ *
+ * @example
+ * ```tsx
+ * t.device.isTablet    // true on tablet devices
+ * t.device.isPhone     // true on phone devices
+ * t.device.brand       // "Apple", "Samsung", etc.
+ * t.device.modelName   // "iPhone 15 Pro", "Pixel 8", etc.
+ * t.device.isDevice    // false in simulator/emulator
+ * t.device.osVersion   // "17.4", "14", etc.
+ * ```
+ */
+export interface DeviceTokens {
+  /** Whether the app is running on a physical device (false in simulator/emulator) */
+  isDevice: boolean;
+  /** Device brand (e.g. "Apple", "Samsung", "Google") */
+  brand: string | null;
+  /** Device manufacturer */
+  manufacturer: string | null;
+  /** Device model name (e.g. "iPhone 15 Pro", "Pixel 8") */
+  modelName: string | null;
+  /** Device model identifier (e.g. "iPhone16,1") */
+  modelId: string | null;
+  /** Approximate year class of the device */
+  deviceYearClass: number | null;
+  /** Total memory in bytes */
+  totalMemory: number | null;
+  /** Operating system name (e.g. "iOS", "Android") */
+  osName: string | null;
+  /** Operating system version (e.g. "17.4", "14") */
+  osVersion: string | null;
+  /** Operating system build ID */
+  osBuildId: string | null;
+  /** User-set device name */
+  deviceName: string | null;
+  /** Device type enum value (0=UNKNOWN, 1=PHONE, 2=TABLET, 3=DESKTOP, 4=TV) */
+  deviceType: number | null;
+  /** True when running on a phone */
+  isPhone: boolean;
+  /** True when running on a tablet */
+  isTablet: boolean;
+  /** True when running on a desktop */
+  isDesktop: boolean;
+  /** True when running on a TV */
+  isTV: boolean;
+}
+
+/**
  * Screen dimensions info.
  */
 export interface ScreenInfo {
@@ -282,6 +333,9 @@ export interface StyleTokens {
 
   /** Current platform (boolean flags) */
   platform: PlatformTokens;
+
+  /** Device info from expo-device (hardware, form factor, OS details) */
+  device: DeviceTokens;
 
   /** Safe area insets */
   insets: Insets;
