@@ -29,9 +29,33 @@ export { Fragment } from 'react';
 // and in published packages — no dependency on module path alias resolution.
 type _StyleFnTokens = import('../src/types').StyleTokens;
 
-// A style function returning `any` — used to widen narrowly-typed style props
-// (e.g. `style?: ViewStyle`) to also accept token functions.
-type _StyleFnForStyle = (_tokens: _StyleFnTokens) => any;
+// Combine all React Native style types into a single intersection for
+// comprehensive autocomplete (padding from ViewStyle, fontSize from TextStyle, etc.)
+type _AllRNStyles = import('react-native').ViewStyle &
+  import('react-native').TextStyle &
+  import('react-native').ImageStyle;
+
+// Custom dimension strings that the Babel plugin resolves at runtime
+// (fractions → %, viewport units → px, rem → px).
+type _StyleFnDimension =
+  | `${number}/${number}`
+  | `${number}vw`
+  | `${number}vh`
+  | `${number}rem`;
+
+// Loosened style type: all RN style properties are optional and also accept
+// custom dimension strings. This gives full autocomplete for style properties
+// while allowing stylefn-specific string values.
+type _LooseAllStyles = {
+  [K in keyof _AllRNStyles]?: _AllRNStyles[K] | _StyleFnDimension;
+};
+
+// A style function with a properly typed return — provides autocomplete for
+// ALL React Native style properties when used as a fallback (i.e. when the
+// postinstall patch of StyleProp<T> hasn't been applied).
+type _StyleFnForStyle = (
+  _tokens: _StyleFnTokens
+) => _LooseAllStyles | false | null | undefined;
 
 // A children function that receives tokens and returns ReactNode.
 // Used to widen the `children` prop to accept the render-children pattern.
@@ -93,13 +117,7 @@ type _WithTokenFunctions<P> = {
         :
             | P[K]
             | _StyleFnForStyle
-            | ReadonlyArray<
-                | Record<string, any>
-                | _StyleFnForStyle
-                | false
-                | null
-                | undefined
-              >
+            | ReadonlyArray<_LooseAllStyles | _StyleFnForStyle | false | null | undefined>
       : P[K] | ((_tokens: _StyleFnTokens) => NonNullable<P[K]>)
     : P[K];
 };

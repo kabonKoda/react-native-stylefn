@@ -43,10 +43,6 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
   // Get the raw CSS variables map for the current color scheme (for var() resolution)
   const rawVars = getRawVarsForScheme(cssVars, colorScheme);
 
-  // Merge CSS color variables with defaults (backward compat)
-  const lightVars = { ...defaultCSSVariables.light, ...cssVars.light };
-  const darkVars = { ...defaultCSSVariables.dark, ...cssVars.dark };
-
   // Resolve theme values — CSS expressions are evaluated here (with rem support)
   const resolvedSpacing = resolveNumericMap(theme.spacing, rawVars, inlineRem);
   const resolvedFontSize = resolveNumericMap(
@@ -64,10 +60,22 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
   // Resolve colors — flatten nested objects and evaluate hsl()/var()
   const resolvedThemeColors = resolveColorMap(theme.colors, rawVars);
 
-  // Merge: theme colors + CSS color variables (CSS vars override for current scheme)
+  // Default CSS color variables (built-in fallbacks — lowest priority)
+  const defaultSchemeColors = dark
+    ? defaultCSSVariables.dark
+    : defaultCSSVariables.light;
+
+  // User's --color-* CSS variables from global.css (highest priority)
+  const cssColorVars = dark ? cssVars.dark : cssVars.light;
+
+  // Merge priority (lowest → highest):
+  // 1. Default CSS color variables (built-in fallbacks)
+  // 2. Resolved theme colors (from config, including hsl(var(...)) expressions)
+  // 3. User's --color-* CSS variables (explicit overrides from global.css)
   const colors: Record<string, string> = {
+    ...defaultSchemeColors,
     ...resolvedThemeColors,
-    ...(dark ? darkVars : lightVars),
+    ...cssColorVars,
   };
 
   // Resolve shadows — supports string values, var() references, and boxShadow alias

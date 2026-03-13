@@ -33,6 +33,14 @@ function resolveVarReferences(
         const resolved = vars[name];
         if (resolved !== undefined) return resolved;
         if (fallback !== undefined) return fallback.trim();
+        if (__DEV__) {
+          console.warn(
+            `[react-native-stylefn] CSS variable --${name} is not defined and has no fallback. ` +
+              'The value will be empty. Define it in your global.css or provide a fallback: var(--' +
+              name +
+              ', <fallback>)'
+          );
+        }
         return '';
       }
     );
@@ -429,7 +437,19 @@ export function resolveColorExpression(
   // Step 1: Resolve var() references
   let resolved = resolveVarReferences(value, vars);
 
-  // Step 2: Resolve color functions
+  // Step 2: Clean up empty color function calls that result from unresolved vars
+  // e.g. hsl(var(--undefined-var)) → hsl() → 'transparent'
+  if (/^hsla?\(\s*\)$/.test(resolved.trim()) || /^rgba?\(\s*\)$/.test(resolved.trim())) {
+    if (__DEV__) {
+      console.warn(
+        `[react-native-stylefn] Color expression "${value}" resolved to empty "${resolved}". ` +
+          'Check that all referenced CSS variables are defined in your global.css.'
+      );
+    }
+    return 'transparent';
+  }
+
+  // Step 3: Resolve color functions
   if (resolved.includes('hsl') || resolved.includes('HSL')) {
     resolved = resolveHslFunctions(resolved);
   }
@@ -680,3 +700,5 @@ export function getRawVarsForScheme(
   }
   return raw;
 }
+
+declare const __DEV__: boolean;

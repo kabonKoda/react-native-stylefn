@@ -7,10 +7,14 @@ import { evaluateCalc } from './units';
 /**
  * Static fallback tokens — no native API calls at module init time.
  * These are replaced by real values once StyleProvider mounts.
+ *
+ * Merge priority (lowest → highest):
+ * 1. Default CSS color variables (built-in fallbacks)
+ * 2. Default theme colors (from defaultTheme)
  */
 const fallbackColors: Record<string, string> = {
-  ...(defaultTheme.colors as Record<string, string>),
   ...defaultCSSVariables.light,
+  ...(defaultTheme.colors as Record<string, string>),
 };
 
 const fallbackScreen = { width: 375, height: 812, scale: 2, fontScale: 1 };
