@@ -1,5 +1,9 @@
 import { useSyncExternalStore } from 'react';
-import { getTokenStore, subscribeTokenStore } from './store';
+import {
+  getTokenStore,
+  subscribeCustomTokenStore,
+  getCustomTokenSnapshot,
+} from './store';
 import { resolveViewportUnits } from './units';
 
 /**
@@ -107,6 +111,21 @@ export function __resolveProp(value: unknown): unknown {
  * subscription, which is the same mechanism used by `useStyleFn()` internally.
  */
 export function __subscribeStyleFn(): void {
+  // Subscribe only to *custom* token changes, NOT to every StyleProvider
+  // update (dark mode, orientation, breakpoints, etc.).
+  //
+  // Rationale:
+  // - StyleProvider-driven changes already cascade naturally through React's
+  //   tree re-render — no extra subscription needed.
+  // - The only case requiring an explicit subscription is when useTokenInjection
+  //   mutates t.custom.* outside the Provider's render cycle. Subscribing to
+  //   the full store would re-render every styled component on every provider
+  //   update, causing a full-app cascade.
+  //
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  useSyncExternalStore(subscribeTokenStore, getTokenStore, getTokenStore);
+  useSyncExternalStore(
+    subscribeCustomTokenStore,
+    getCustomTokenSnapshot,
+    getCustomTokenSnapshot
+  );
 }

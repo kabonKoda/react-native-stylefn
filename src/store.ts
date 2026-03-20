@@ -162,11 +162,46 @@ export const removeCustomTokens = (id: number): void => {
   _applyCustomTokensToStore();
 };
 
+// =============================================================================
+// Custom-token-only subscription
+//
+// Separate from the main token store subscription so that components
+// auto-subscribed by the Babel plugin (__subscribeStyleFn) only re-render
+// when *custom* tokens change — not on every StyleProvider update (dark mode,
+// orientation, breakpoints, etc.).
+//
+// StyleProvider-driven changes already propagate naturally via React's tree
+// re-render; the extra subscription is only needed for useTokenInjection
+// updates that happen outside the Provider's render cycle.
+// =============================================================================
+
+/** Listeners notified only when custom tokens change */
+const _customListeners = new Set<StoreListener>();
+
+export const subscribeCustomTokenStore = (
+  listener: StoreListener
+): (() => void) => {
+  _customListeners.add(listener);
+  return () => {
+    _customListeners.delete(listener);
+  };
+};
+
+/** Snapshot selector for custom-only subscription */
+export const getCustomTokenSnapshot = (): StyleTokens => _store;
+
 /**
  * Rebuild `_store.custom` from all active slices and notify listeners.
  * Called after every set/remove operation.
+ *
+ * - Fires the full-store listeners (for useStyleFn hooks)
+ * - Also fires the custom-only listeners (for __subscribeStyleFn hooks)
  */
 function _applyCustomTokensToStore(): void {
   _store = { ..._store, custom: getCustomTokens() };
+  // Notify full-store listeners (useStyleFn(), useTokenInjection internals)
   notifyTokenStoreListeners();
+  // Notify custom-only listeners (__subscribeStyleFn — avoids StyleProvider cascade)
+  const current = _store;
+  _customListeners.forEach((listener) => listener(current));
 }
