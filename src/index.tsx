@@ -13,6 +13,7 @@ export { usePropsFn } from './hooks/usePropsFn';
 export type { TokenProp } from './hooks/usePropsFn';
 export { useLayout } from './hooks/useLayout';
 export type { UseLayoutReturn } from './hooks/useLayout';
+export { useTokenInjection } from './hooks/useTokenInjection';
 
 // Types — exported for consumers to use in their own code
 export type {
@@ -39,6 +40,7 @@ export type {
   PropFunction,
   ChildrenFunction,
   LayoutInfo,
+  CustomTokens,
 } from './types';
 
 // Config utilities (for advanced usage)

@@ -1,4 +1,4 @@
-import type { StyleTokens } from './types';
+import type { StyleTokens, CustomTokens } from './types';
 import { defaultTheme, defaultCSSVariables } from './config/defaults';
 import { createBreakpointQuery } from './tokens/breakpoint';
 import { defaultDevice } from './tokens/device';
@@ -58,6 +58,7 @@ const fallbackTokens: StyleTokens = {
   inlineRem: DEFAULT_INLINE_REM,
   width: fallbackScreen.width,
   height: fallbackScreen.height,
+  custom: {} as CustomTokens & Record<string, unknown>,
 };
 
 /**
@@ -104,3 +105,68 @@ export const getManualDark = (): boolean | null => _manualDark;
 export const setManualDark = (value: boolean | null): void => {
   _manualDark = value;
 };
+
+// =============================================================================
+// Custom token injection store
+//
+// Multiple components can inject different custom tokens simultaneously.
+// Each injector is tracked by a unique numeric ID so cleanup on unmount
+// only removes that component's contribution.
+//
+// The merged result of all active injections is always reflected as
+// `t.custom` in the token store.
+// =============================================================================
+
+/** Per-injector custom token slices, keyed by injector ID */
+const _customSlices = new Map<number, Record<string, unknown>>();
+
+/** Auto-incrementing ID for each useTokenInjection instance */
+let _customIdCounter = 0;
+
+/**
+ * Allocate a new unique injector ID.
+ * Called once per `useTokenInjection` mount.
+ */
+export const allocCustomTokenId = (): number => ++_customIdCounter;
+
+/**
+ * Return the merged custom tokens from all active injectors.
+ * Later-allocated IDs win for duplicate keys (insertion-order wins).
+ */
+export const getCustomTokens = (): CustomTokens & Record<string, unknown> => {
+  const merged: Record<string, unknown> = {};
+  _customSlices.forEach((slice) => {
+    Object.assign(merged, slice);
+  });
+  return merged as CustomTokens & Record<string, unknown>;
+};
+
+/**
+ * Update (or add) the custom token slice for a given injector ID,
+ * then patch the live store and notify listeners.
+ */
+export const setCustomTokens = (
+  id: number,
+  tokens: Record<string, unknown>
+): void => {
+  _customSlices.set(id, tokens);
+  _applyCustomTokensToStore();
+};
+
+/**
+ * Remove the custom token slice for a given injector ID (called on unmount),
+ * then patch the live store and notify listeners.
+ */
+export const removeCustomTokens = (id: number): void => {
+  _customSlices.delete(id);
+  _applyCustomTokensToStore();
+};
+
+/**
+ * Rebuild `_store.custom` from all active slices and notify listeners.
+ * Called after every set/remove operation.
+ */
+function _applyCustomTokensToStore(): void {
+  _store = { ..._store, custom: getCustomTokens() };
+  notifyTokenStoreListeners();
+}

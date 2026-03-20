@@ -406,6 +406,30 @@ export interface StyleTokens {
    * For component-level dimensions, use the `useLayout()` hook.
    */
   height: number;
+
+  /**
+   * Custom user-injected tokens — populated via `useTokenInjection()`.
+   *
+   * Augment the `CustomTokens` interface via module declaration for full
+   * TypeScript autocomplete on your custom keys.
+   *
+   * @example
+   * ```tsx
+   * // Declare your custom tokens (once, in a .d.ts file):
+   * declare module 'react-native-stylefn' {
+   *   interface CustomTokens {
+   *     isSideBarOpened: boolean;
+   *   }
+   * }
+   *
+   * // Inject from any component:
+   * useTokenInjection({ isSideBarOpened });
+   *
+   * // Use in style functions:
+   * <View style={(t) => ({ width: t.custom.isSideBarOpened ? 260 : 0 })} />
+   * ```
+   */
+  custom: CustomTokens & Record<string, unknown>;
 }
 
 /**
@@ -561,6 +585,32 @@ export interface TokenResolverParams {
   config: StyleFnConfig;
   cssVars: CSSVariables;
 }
+
+/**
+ * Custom user-defined tokens — injected via `useTokenInjection()`.
+ *
+ * Augment this interface via module declaration to get TypeScript autocomplete
+ * for your custom tokens in style functions.
+ *
+ * @example
+ * ```ts
+ * // In your app's type declaration file (e.g. stylefn-env.d.ts):
+ * declare module 'react-native-stylefn' {
+ *   interface CustomTokens {
+ *     isSideBarOpened: boolean;
+ *     cartCount: number;
+ *   }
+ * }
+ *
+ * // Then inject in any component:
+ * const [isSideBarOpened, setIsSideBarOpened] = useState(false);
+ * useTokenInjection({ isSideBarOpened });
+ *
+ * // And use in style functions:
+ * <View style={(t) => ({ width: t.custom.isSideBarOpened ? 260 : 0 })} />
+ * ```
+ */
+export interface CustomTokens {}
 
 /**
  * Theme hook return type (dark mode control).

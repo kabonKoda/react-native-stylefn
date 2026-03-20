@@ -1,6 +1,7 @@
 import type { StyleTokens, TokenResolverParams, ThemeConfig } from '../types';
 import { resolveTheme } from '../config/resolver';
 import { defaultCSSVariables } from '../config/defaults';
+import { getCustomTokens } from '../store';
 import {
   getRawVarsForScheme,
   resolveNumericMap,
@@ -138,6 +139,7 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     inlineRem,
     width: screenWidth,
     height: screenHeight,
+    custom: getCustomTokens(),
   };
 }
 
