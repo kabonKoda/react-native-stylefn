@@ -30,28 +30,37 @@ export function __resolveStyle(value: unknown): unknown {
 
 /**
  * Resolves a children value at render time.
- * - If it's a function, calls it with the current token store.
+ * - If it's a function, calls it with the current token store + layout `{0,0}`.
  * - Otherwise returns it as-is.
  *
- * This is specifically for the render-children pattern where children
- * is a function receiving tokens. Unlike __resolveProp, this is used
- * exclusively for children (both inline JSX children and the `children` prop).
+ * Used for two cases:
+ * 1. **Fragment children**: `<>{fn}</>` — no parent element to measure, so
+ *    `layout` is `{ width: 0, height: 0 }`.
+ * 2. **`children` attribute prop**: `<Comp children={fn} />` — similarly no
+ *    parent measurement available.
  *
- * Injected automatically by the Babel plugin into JSX children
- * that contain arrow/function expressions.
+ * For **inline children of JSX elements** (`<View>{fn}</View>`), the Babel
+ * plugin transforms the parent element into `<__LayoutView>` instead, which
+ * provides real measured `layout` dimensions. This function is NOT called in
+ * that case.
  *
  * @example
  * ```tsx
- * // Before (user code):
- * <Card>{(t) => <Text style={{ color: t.colors.text }}>Hello</Text>}</Card>
+ * // `children` attribute prop — still uses __resolveChildren:
+ * <Card children={(t) => <Text style={{ color: t.colors.text }}>Hello</Text>} />
  *
- * // After (babel-transformed):
- * <Card>{__resolveChildren((t) => <Text style={{ color: t.colors.text }}>Hello</Text>)}</Card>
+ * // Inline Fragment children — uses __resolveChildren (no layout):
+ * <>{(t) => <Text>{t.colors.text}</Text>}</>
+ *
+ * // Inline element children — transformed to __LayoutView (has layout):
+ * <Card>{({ layout }) => <Text>Width: {layout.width}</Text>}</Card>
  * ```
  */
 export function __resolveChildren(value: unknown): unknown {
   if (typeof value === 'function') {
-    return value(getTokenStore());
+    // Pass layout: { width: 0, height: 0 } for cases where no parent
+    // element measurement is available (Fragment children, children prop).
+    return value({ ...getTokenStore(), layout: { width: 0, height: 0 } });
   }
   return value;
 }

@@ -506,9 +506,49 @@ export type StyleProp<S = RNStyle> =
   | undefined;
 
 /**
+ * Extended token type available exclusively in the children-as-function pattern.
+ *
+ * Includes all `StyleTokens` plus a `layout` field containing the **parent
+ * component's measured dimensions** (width and height in pixels), updated
+ * automatically via an `onLayout` handler injected by the Babel plugin.
+ *
+ * `layout.width` and `layout.height` start at `0` until the first layout pass,
+ * then reflect the actual rendered dimensions of the containing component.
+ *
+ * This is different from `t.width` / `t.height` which are the **screen**
+ * dimensions. Use `layout` when you need to size children relative to their
+ * parent container.
+ *
+ * @example
+ * ```tsx
+ * <View style={{ flex: 1 }}>
+ *   {({ layout, colors }) => (
+ *     <View style={{ width: layout.width / 2, backgroundColor: colors.primary }}>
+ *       <Text>Half the container width</Text>
+ *     </View>
+ *   )}
+ * </View>
+ * ```
+ */
+export interface ChildrenTokens extends StyleTokens {
+  /**
+   * The measured layout dimensions of the parent component that contains
+   * this children function. Updated automatically after the first layout pass.
+   *
+   * - `layout.width` — measured width in pixels (0 before first layout)
+   * - `layout.height` — measured height in pixels (0 before first layout)
+   *
+   * **Note:** This is the parent component's dimensions, NOT the screen
+   * dimensions. For screen dimensions, use `t.screen.width` / `t.width`.
+   */
+  layout: LayoutInfo;
+}
+
+/**
  * A children value that can be either static ReactNode content or a function
- * receiving tokens and returning ReactNode content. This enables the
- * render-children (children-as-function) pattern with access to design tokens.
+ * receiving tokens (with layout) and returning ReactNode content. This enables
+ * the render-children (children-as-function) pattern with access to design
+ * tokens AND the parent component's measured dimensions.
  *
  * Use this to type the `children` prop in components that support the
  * render-children pattern.
@@ -523,15 +563,19 @@ export type StyleProp<S = RNStyle> =
  *
  * // Usage:
  * <Card>
- *   {(t) => (
- *     <Text style={{ color: t.colors.text }}>
- *       {t.dark ? 'Dark Mode' : 'Light Mode'}
- *     </Text>
+ *   {({ layout, colors }) => (
+ *     <View style={{ width: layout.width * 0.8 }}>
+ *       <Text style={{ color: colors.text }}>
+ *         {layout.dark ? 'Dark Mode' : 'Light Mode'}
+ *       </Text>
+ *     </View>
  *   )}
  * </Card>
  * ```
  */
-export type ChildrenFunction<T = ReactNode> = T | ((tokens: StyleTokens) => T);
+export type ChildrenFunction<T = ReactNode> =
+  | T
+  | ((tokens: ChildrenTokens) => T);
 
 /**
  * A prop value that can be either a static value or a function receiving tokens.

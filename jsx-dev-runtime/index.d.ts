@@ -10,6 +10,10 @@ export { Fragment } from 'react';
 // augmentations (e.g. CustomTokens) are included in the token type used here.
 type _StyleFnTokens = import('react-native-stylefn').StyleTokens;
 
+// Token type for children functions — includes layout dimensions of the parent
+// component in addition to all StyleTokens fields.
+type _ChildrenTokens = import('react-native-stylefn').ChildrenTokens;
+
 // Combine all React Native style types into a single intersection for
 // comprehensive autocomplete (padding from ViewStyle, fontSize from TextStyle, etc.)
 type _AllRNStyles = import('react-native').ViewStyle &
@@ -45,7 +49,8 @@ type _StyleFnForStyle = (
   _tokens: _StyleFnTokens
 ) => _LooseAllStyles | false | null | undefined;
 
-type _ChildrenFnForTokens = (_tokens: _StyleFnTokens) => React.ReactNode;
+// A children function that receives ChildrenTokens (StyleTokens + layout).
+type _ChildrenFnForTokens = (_tokens: _ChildrenTokens) => React.ReactNode;
 type _StylePropHasFn<T> = ((_tokens: _StyleFnTokens) => any) extends T
   ? true
   : false;

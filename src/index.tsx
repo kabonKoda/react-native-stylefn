@@ -18,6 +18,7 @@ export { useTokenInjection } from './hooks/useTokenInjection';
 // Types — exported for consumers to use in their own code
 export type {
   StyleTokens,
+  ChildrenTokens,
   StyleFunction,
   StyleProp,
   StyleFnDimension,
@@ -93,3 +94,6 @@ export { __resolveProp } from './resolve';
 
 // Children resolver (used by Babel plugin for function children / render children pattern)
 export { __resolveChildren } from './resolve';
+
+// Layout-aware wrapper (used by Babel plugin for children-as-function with layout measurement)
+export { __LayoutView } from './layoutView';
