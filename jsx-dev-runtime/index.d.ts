@@ -6,9 +6,9 @@
 import * as React from 'react';
 export { Fragment } from 'react';
 
-// Use a relative import so this resolves correctly in both the monorepo (dev)
-// and in published packages — no dependency on module path alias resolution.
-type _StyleFnTokens = import('../src/types').StyleTokens;
+// Import from the package entry point so `declare module 'react-native-stylefn'`
+// augmentations (e.g. CustomTokens) are included in the token type used here.
+type _StyleFnTokens = import('react-native-stylefn').StyleTokens;
 
 // Combine all React Native style types into a single intersection for
 // comprehensive autocomplete (padding from ViewStyle, fontSize from TextStyle, etc.)
