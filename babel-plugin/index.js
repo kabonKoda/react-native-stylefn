@@ -76,38 +76,51 @@ function jsxNameToExpression(t, name) {
 
 module.exports = function styleFnBabelPlugin({ types: t }) {
   /**
-   * Injects `__subscribeStyleFn()` at the top of the nearest enclosing
-   * block-body function so the component automatically re-renders whenever
-   * the token store changes (e.g. when useTokenInjection updates t.custom.*).
+   * Injects `const __deps = __subscribeStyleFn();` at the top of the nearest
+   * enclosing block-body function so the component automatically re-renders
+   * only when the specific tokens it accesses change.
    *
-   * - Only injects once per function per file (tracked via WeakSet on state).
+   * Returns the Identifier node for `__deps` so callers can pass it to
+   * `__resolveStyle(fn, __deps)`, `__resolveProp(fn, __deps)`, etc.
+   *
+   * - Only injects once per function per file (tracked via Map on state).
    * - Only targets functions with a BlockStatement body (not concise arrows).
    * - Skips the style-function expression itself and only goes to the
    *   component-level function.
    */
   function injectStoreSubscription(attrPath, state) {
     if (!state.__subscribedFunctionNodes) {
-      state.__subscribedFunctionNodes = new WeakSet();
+      state.__subscribedFunctionNodes = new Map();
     }
 
     // Find the nearest enclosing function that has a block body.
-    // path.findParent walks up, starting from the *parent* of attrPath.
     const fnPath = attrPath.findParent(
       (p) => p.isFunction() && t.isBlockStatement(p.node.body)
     );
 
-    if (!fnPath) return;
-    if (state.__subscribedFunctionNodes.has(fnPath.node)) return;
-    state.__subscribedFunctionNodes.add(fnPath.node);
+    if (!fnPath) return null;
+
+    // If already injected for this function, return the existing identifier
+    if (state.__subscribedFunctionNodes.has(fnPath.node)) {
+      return state.__subscribedFunctionNodes.get(fnPath.node);
+    }
 
     const programPath =
       state.__programPath || attrPath.findParent((p) => p.isProgram());
     ensureImport(programPath, state, SUBSCRIBE_FN);
 
-    // Prepend __subscribeStyleFn() to the function body.
-    fnPath.node.body.body.unshift(
-      t.expressionStatement(t.callExpression(t.identifier(SUBSCRIBE_FN), []))
-    );
+    // Create: const __deps = __subscribeStyleFn();
+    const depsId = t.identifier('__deps');
+    const declaration = t.variableDeclaration('const', [
+      t.variableDeclarator(
+        depsId,
+        t.callExpression(t.identifier(SUBSCRIBE_FN), [])
+      ),
+    ]);
+
+    fnPath.node.body.body.unshift(declaration);
+    state.__subscribedFunctionNodes.set(fnPath.node, depsId);
+    return depsId;
   }
 
   /**
@@ -266,8 +279,9 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
             state.__programPath || path.findParent((p) => p.isProgram());
           ensureImport(programPath, state, RESOLVE_FN);
 
-          value.expression = t.callExpression(t.identifier(RESOLVE_FN), [expr]);
-          injectStoreSubscription(path, state);
+          const depsId = injectStoreSubscription(path, state);
+          const args = depsId ? [expr, depsId] : [expr];
+          value.expression = t.callExpression(t.identifier(RESOLVE_FN), args);
           return;
         }
 
@@ -293,11 +307,12 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
             state.__programPath || path.findParent((p) => p.isProgram());
           ensureImport(programPath, state, RESOLVE_CHILDREN_FN);
 
+          const depsIdC = injectStoreSubscription(path, state);
+          const argsC = depsIdC ? [expr, depsIdC] : [expr];
           value.expression = t.callExpression(
             t.identifier(RESOLVE_CHILDREN_FN),
-            [expr]
+            argsC
           );
-          injectStoreSubscription(path, state);
           return;
         }
 
@@ -325,10 +340,12 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
           state.__programPath || path.findParent((p) => p.isProgram());
         ensureImport(programPath, state, RESOLVE_PROP_FN);
 
-        value.expression = t.callExpression(t.identifier(RESOLVE_PROP_FN), [
-          expr,
-        ]);
-        injectStoreSubscription(path, state);
+        const depsIdP = injectStoreSubscription(path, state);
+        const argsP = depsIdP ? [expr, depsIdP] : [expr];
+        value.expression = t.callExpression(
+          t.identifier(RESOLVE_PROP_FN),
+          argsP
+        );
       },
 
       // =======================================================================

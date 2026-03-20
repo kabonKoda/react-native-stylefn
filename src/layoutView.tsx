@@ -1,10 +1,6 @@
 import React, { useState } from 'react';
 import { useSyncExternalStore } from 'react';
-import {
-  getTokenStore,
-  subscribeCustomTokenStore,
-  getCustomTokenSnapshot,
-} from './store';
+import { getTokenStore, subscribeTokenStore } from './store';
 import type { ChildrenTokens, LayoutInfo } from './types';
 
 /**
@@ -57,14 +53,10 @@ function LayoutViewWrapper({
   children?: React.ReactNode;
   [key: string]: any;
 }): React.JSX.Element {
-  // Subscribe only to custom token changes so this re-renders when
-  // useTokenInjection updates t.custom.*, without cascading on every
-  // StyleProvider update (dark mode, orientation, etc.).
-  useSyncExternalStore(
-    subscribeCustomTokenStore,
-    getCustomTokenSnapshot,
-    getCustomTokenSnapshot
-  );
+  // Subscribe to the full store — re-renders on dark mode, orientation,
+  // screen resize, AND custom token changes. Safe because StyleProvider
+  // uses _StableChildren to prevent cascading.
+  useSyncExternalStore(subscribeTokenStore, getTokenStore, getTokenStore);
 
   const [layout, setLayout] = useState<LayoutInfo>({ width: 0, height: 0 });
 

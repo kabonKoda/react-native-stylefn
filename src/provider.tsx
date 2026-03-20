@@ -1,7 +1,18 @@
 import React, { useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { useColorScheme, Dimensions, PixelRatio, Platform, AccessibilityInfo, type ScaledSize } from 'react-native';
+import {
+  useColorScheme,
+  Dimensions,
+  PixelRatio,
+  Platform,
+  AccessibilityInfo,
+  type ScaledSize,
+} from 'react-native';
 import type { StyleFnConfig, CSSVariables, ColorScheme, Insets } from './types';
-import { setTokenStore, notifyTokenStoreListeners, getManualDark } from './store';
+import {
+  setTokenStore,
+  notifyTokenStoreListeners,
+  getManualDark,
+} from './store';
 import { resolveTokens } from './tokens';
 import { defaultCSSVariables } from './config/defaults';
 import { applyPatch } from './patch';
@@ -44,9 +55,12 @@ function useScreenDimensions() {
   const [dims, setDims] = React.useState(() => Dimensions.get('window'));
 
   useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', (e: { window: ScaledSize; screen: ScaledSize }) => {
-      setDims(e.window);
-    });
+    const subscription = Dimensions.addEventListener(
+      'change',
+      (e: { window: ScaledSize; screen: ScaledSize }) => {
+        setDims(e.window);
+      }
+    );
     return () => subscription.remove();
   }, []);
 
@@ -62,7 +76,9 @@ function useReducedMotion(): boolean {
   useEffect(() => {
     // Check initial state
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      AccessibilityInfo.isReduceMotionEnabled().then(setReduced).catch(() => {});
+      AccessibilityInfo.isReduceMotionEnabled()
+        .then(setReduced)
+        .catch(() => {});
     }
 
     // Subscribe to changes
@@ -85,7 +101,9 @@ function useBoldText(): boolean {
 
   useEffect(() => {
     if (Platform.OS === 'ios') {
-      AccessibilityInfo.isBoldTextEnabled().then(setBold).catch(() => {});
+      AccessibilityInfo.isBoldTextEnabled()
+        .then(setBold)
+        .catch(() => {});
       const subscription = AccessibilityInfo.addEventListener(
         'boldTextChanged',
         setBold
@@ -109,7 +127,9 @@ function useHighContrast(): boolean {
       // Not all RN versions expose isGrayscaleEnabled
       const ai = AccessibilityInfo as Record<string, unknown>;
       if (typeof ai['isGrayscaleEnabled'] === 'function') {
-        (ai['isGrayscaleEnabled'] as () => Promise<boolean>)().then(setHighContrast).catch(() => {});
+        (ai['isGrayscaleEnabled'] as () => Promise<boolean>)()
+          .then(setHighContrast)
+          .catch(() => {});
       }
     }
     return undefined;
@@ -117,6 +137,24 @@ function useHighContrast(): boolean {
 
   return highContrast;
 }
+
+/**
+ * Stable children wrapper — memoized so StyleProvider's own re-renders
+ * (triggered by dark mode, orientation, dimension changes, etc.) do NOT
+ * cascade to the rest of the app tree.
+ *
+ * Children are only re-rendered when the calling component (the parent
+ * of <StyleProvider>) re-renders and creates a new children reference.
+ * All token-driven re-renders are handled by __subscribeStyleFn /
+ * useStyleFn subscriptions instead of React's normal cascade.
+ */
+const _StableChildren = React.memo(function StableChildren({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <>{children}</>;
+});
 
 /**
  * StyleProvider — the only component developers need to wrap their app with.
@@ -132,7 +170,10 @@ export function StyleProvider({
   insets: customInsets,
 }: StyleProviderProps): React.JSX.Element {
   // Props take precedence; fall back to auto-loaded values from config file / metro
-  const resolvedConfig: Partial<StyleFnConfig> = config ?? _autoConfig ?? {};
+  const resolvedConfig = useMemo<Partial<StyleFnConfig>>(
+    () => config ?? _autoConfig ?? {},
+    [config]
+  );
   const systemColorScheme = useColorScheme();
   const dimensions = useScreenDimensions();
   const reducedMotion = useReducedMotion();
@@ -150,8 +191,11 @@ export function StyleProvider({
     }
   }, []);
 
-  // Default insets
-  const insets = customInsets ?? { top: 0, bottom: 0, left: 0, right: 0 };
+  // Default insets — memoized so the tokens useMemo dep array is stable
+  const insets = useMemo(
+    () => customInsets ?? { top: 0, bottom: 0, left: 0, right: 0 },
+    [customInsets]
+  );
 
   // Resolve CSS variables — prop > auto-loaded > defaults
   const resolvedCssVars = cssVars ?? _autoCssVars ?? defaultCSSVariables;
@@ -168,34 +212,35 @@ export function StyleProvider({
   }
 
   // Compute tokens synchronously so children render with up-to-date values
-  const tokens = useMemo(() => resolveTokens({
-    colorScheme: effectiveColorScheme,
-    screenWidth: dimensions.width,
-    screenHeight: dimensions.height,
-    screenScale: dimensions.scale ?? PixelRatio.get(),
-    fontScale,
-    insets,
-    reducedMotion,
-    boldText,
-    highContrast,
-    config: resolvedConfig,
-    cssVars: resolvedCssVars,
-  }), [
-    effectiveColorScheme,
-    dimensions.width,
-    dimensions.height,
-    dimensions.scale,
-    fontScale,
-    insets.top,
-    insets.bottom,
-    insets.left,
-    insets.right,
-    reducedMotion,
-    boldText,
-    highContrast,
-    resolvedConfig,
-    resolvedCssVars,
-  ]);
+  const tokens = useMemo(
+    () =>
+      resolveTokens({
+        colorScheme: effectiveColorScheme,
+        screenWidth: dimensions.width,
+        screenHeight: dimensions.height,
+        screenScale: dimensions.scale ?? PixelRatio.get(),
+        fontScale,
+        insets,
+        reducedMotion,
+        boldText,
+        highContrast,
+        config: resolvedConfig,
+        cssVars: resolvedCssVars,
+      }),
+    [
+      effectiveColorScheme,
+      dimensions.width,
+      dimensions.height,
+      dimensions.scale,
+      fontScale,
+      insets,
+      reducedMotion,
+      boldText,
+      highContrast,
+      resolvedConfig,
+      resolvedCssVars,
+    ]
+  );
 
   // Update store synchronously before children render
   setTokenStore(tokens);
@@ -205,5 +250,5 @@ export function StyleProvider({
     notifyTokenStoreListeners();
   }, [tokens]);
 
-  return <>{children}</>;
+  return <_StableChildren>{children}</_StableChildren>;
 }
