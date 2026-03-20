@@ -5,6 +5,7 @@ const RESOLVE_FN = '__resolveStyle';
 const RESOLVE_PROP_FN = '__resolveProp';
 const RESOLVE_CHILDREN_FN = '__resolveChildren';
 const LAYOUT_VIEW_FN = '__LayoutView';
+const SUBSCRIBE_FN = '__subscribeStyleFn';
 const INJECTED_COMMENT = '__stylefn_injected__';
 const VIEWPORT_UNIT_RE = /^-?\d+\.?\d*(vh|vw)$/;
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
@@ -74,6 +75,41 @@ function jsxNameToExpression(t, name) {
 }
 
 module.exports = function styleFnBabelPlugin({ types: t }) {
+  /**
+   * Injects `__subscribeStyleFn()` at the top of the nearest enclosing
+   * block-body function so the component automatically re-renders whenever
+   * the token store changes (e.g. when useTokenInjection updates t.custom.*).
+   *
+   * - Only injects once per function per file (tracked via WeakSet on state).
+   * - Only targets functions with a BlockStatement body (not concise arrows).
+   * - Skips the style-function expression itself and only goes to the
+   *   component-level function.
+   */
+  function injectStoreSubscription(attrPath, state) {
+    if (!state.__subscribedFunctionNodes) {
+      state.__subscribedFunctionNodes = new WeakSet();
+    }
+
+    // Find the nearest enclosing function that has a block body.
+    // path.findParent walks up, starting from the *parent* of attrPath.
+    const fnPath = attrPath.findParent(
+      (p) => p.isFunction() && t.isBlockStatement(p.node.body)
+    );
+
+    if (!fnPath) return;
+    if (state.__subscribedFunctionNodes.has(fnPath.node)) return;
+    state.__subscribedFunctionNodes.add(fnPath.node);
+
+    const programPath =
+      state.__programPath || attrPath.findParent((p) => p.isProgram());
+    ensureImport(programPath, state, SUBSCRIBE_FN);
+
+    // Prepend __subscribeStyleFn() to the function body.
+    fnPath.node.body.body.unshift(
+      t.expressionStatement(t.callExpression(t.identifier(SUBSCRIBE_FN), []))
+    );
+  }
+
   /**
    * Returns true if an ObjectExpression contains any string literal values
    * that look like viewport unit values (e.g. '50vw', '100vh').
@@ -231,6 +267,7 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
           ensureImport(programPath, state, RESOLVE_FN);
 
           value.expression = t.callExpression(t.identifier(RESOLVE_FN), [expr]);
+          injectStoreSubscription(path, state);
           return;
         }
 
@@ -260,6 +297,7 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
             t.identifier(RESOLVE_CHILDREN_FN),
             [expr]
           );
+          injectStoreSubscription(path, state);
           return;
         }
 
@@ -290,6 +328,7 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
         value.expression = t.callExpression(t.identifier(RESOLVE_PROP_FN), [
           expr,
         ]);
+        injectStoreSubscription(path, state);
       },
 
       // =======================================================================

@@ -1,4 +1,5 @@
-import { getTokenStore } from './store';
+import { useSyncExternalStore } from 'react';
+import { getTokenStore, subscribeTokenStore } from './store';
 import { resolveViewportUnits } from './units';
 
 /**
@@ -90,4 +91,22 @@ export function __resolveProp(value: unknown): unknown {
     return value(getTokenStore());
   }
   return value;
+}
+
+/**
+ * Subscribes the calling component to token store changes so that it
+ * re-renders automatically whenever any token updates (e.g. when
+ * `useTokenInjection` changes `t.custom.*`).
+ *
+ * **Injected automatically by the Babel plugin** into the body of every
+ * React component that contains style functions or prop functions in its
+ * JSX. Users should never need to call this directly — use `useStyleFn()`
+ * if you need the token values in component logic.
+ *
+ * Works by wrapping `useSyncExternalStore` around the singleton token store
+ * subscription, which is the same mechanism used by `useStyleFn()` internally.
+ */
+export function __subscribeStyleFn(): void {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useSyncExternalStore(subscribeTokenStore, getTokenStore, getTokenStore);
 }

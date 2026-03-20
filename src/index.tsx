@@ -95,5 +95,9 @@ export { __resolveProp } from './resolve';
 // Children resolver (used by Babel plugin for function children / render children pattern)
 export { __resolveChildren } from './resolve';
 
+// Store subscription hook (injected by Babel plugin into components that use style/prop functions
+// so they automatically re-render when tokens change, e.g. via useTokenInjection)
+export { __subscribeStyleFn } from './resolve';
+
 // Layout-aware wrapper (used by Babel plugin for children-as-function with layout measurement)
 export { __LayoutView } from './layoutView';
