@@ -78,8 +78,13 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     ...cssColorVars,
   };
 
-  // Resolve shadows — supports string values, var() references, and boxShadow alias
-  const shadowSource = theme.shadows ?? theme.boxShadow ?? {};
+  // Resolve shadows — supports string values, var() references, and boxShadow alias.
+  // Merge both `shadows` and `boxShadow` (Tailwind-compatible alias) so users can
+  // use either key in their config. boxShadow takes priority for same-named keys.
+  const shadowSource = {
+    ...(theme.shadows || {}),
+    ...(theme.boxShadow || {}),
+  };
   const resolvedShadows = resolveShadowMap(shadowSource, rawVars);
 
   // Resolve border widths if present
@@ -131,6 +136,8 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
       ),
     rem: (v: number) => v * inlineRem,
     inlineRem,
+    width: screenWidth,
+    height: screenHeight,
   };
 }
 

@@ -11,6 +11,8 @@ export { useStyleFn } from './hooks/useStyleFn';
 export { useTheme } from './hooks/useTheme';
 export { usePropsFn } from './hooks/usePropsFn';
 export type { TokenProp } from './hooks/usePropsFn';
+export { useLayout } from './hooks/useLayout';
+export type { UseLayoutReturn } from './hooks/useLayout';
 
 // Types — exported for consumers to use in their own code
 export type {
@@ -36,6 +38,7 @@ export type {
   RNStyle,
   PropFunction,
   ChildrenFunction,
+  LayoutInfo,
 } from './types';
 
 // Config utilities (for advanced usage)

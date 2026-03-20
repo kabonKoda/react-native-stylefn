@@ -16,6 +16,13 @@ type _AllRNStyles = import('react-native').ViewStyle &
   import('react-native').TextStyle &
   import('react-native').ImageStyle;
 
+// Registered style type (e.g. StyleSheet.absoluteFill, StyleSheet.create() results)
+type _RegisteredStyle = import('react-native').RegisteredStyle<
+  | import('react-native').ViewStyle
+  | import('react-native').TextStyle
+  | import('react-native').ImageStyle
+>;
+
 // Custom dimension strings that the Babel plugin resolves at runtime
 // (fractions → %, viewport units → px, rem → px).
 type _StyleFnDimension =
@@ -78,7 +85,14 @@ type _WithTokenFunctions<P> = {
         :
             | P[K]
             | _StyleFnForStyle
-            | ReadonlyArray<_LooseAllStyles | _StyleFnForStyle | false | null | undefined>
+            | ReadonlyArray<
+                | _LooseAllStyles
+                | _StyleFnForStyle
+                | _RegisteredStyle
+                | false
+                | null
+                | undefined
+              >
       : P[K] | ((_tokens: _StyleFnTokens) => NonNullable<P[K]>)
     : P[K];
 };

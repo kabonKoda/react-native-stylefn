@@ -256,14 +256,19 @@ function resolveRgbFunctions(value: string): string {
  * @param expression - The calc expression string
  * @param inlineRem - Base pixel value for rem→px conversion (default 16)
  */
-function evaluateSimpleCalc(expression: string, inlineRem: number = 16): number {
+function evaluateSimpleCalc(
+  expression: string,
+  inlineRem: number = 16
+): number {
   // Strip outer calc() if present
   let expr = expression.trim();
   const calcMatch = expr.match(/^calc\((.+)\)$/i);
   if (calcMatch) expr = calcMatch[1]!.trim();
 
   // Convert rem units to px before tokenizing: e.g. "0.625rem" → "10" (when inlineRem=16)
-  expr = expr.replace(/(\d+\.?\d*)rem/g, (_, num) => String(parseFloat(num) * inlineRem));
+  expr = expr.replace(/(\d+\.?\d*)rem/g, (_, num) =>
+    String(parseFloat(num) * inlineRem)
+  );
 
   // Remove 'px' units
   expr = expr.replace(/(\d+\.?\d*)px/g, '$1');
@@ -439,7 +444,10 @@ export function resolveColorExpression(
 
   // Step 2: Clean up empty color function calls that result from unresolved vars
   // e.g. hsl(var(--undefined-var)) → hsl() → 'transparent'
-  if (/^hsla?\(\s*\)$/.test(resolved.trim()) || /^rgba?\(\s*\)$/.test(resolved.trim())) {
+  if (
+    /^hsla?\(\s*\)$/.test(resolved.trim()) ||
+    /^rgba?\(\s*\)$/.test(resolved.trim())
+  ) {
     if (__DEV__) {
       console.warn(
         `[react-native-stylefn] Color expression "${value}" resolved to empty "${resolved}". ` +
@@ -501,14 +509,31 @@ export function resolveNumericExpression(
 
 /**
  * Resolve a CSS expression string to a shadow value (string).
- * Only resolves var() references — leaves shadow syntax intact.
+ * Resolves var() references AND color functions (hsl, rgb) within the shadow
+ * string so that React Native's boxShadow parser receives hex colors.
+ *
+ * @example
+ *   "0 1px 3px 0 hsl(0 0% 0% / 0.1)" → "0 1px 3px 0 #0000001a"
+ *   "var(--shadow-2)"                  → resolved var → resolved colors
  */
 export function resolveShadowExpression(
   value: string,
   vars: Record<string, string>
 ): string {
   if (!value || typeof value !== 'string') return value;
-  return resolveVarReferences(value, vars);
+
+  // Step 1: Resolve var() references
+  let resolved = resolveVarReferences(value, vars);
+
+  // Step 2: Resolve color functions (hsl/rgb) to hex so RN can parse them
+  if (resolved.includes('hsl') || resolved.includes('HSL')) {
+    resolved = resolveHslFunctions(resolved);
+  }
+  if (resolved.includes('rgb') || resolved.includes('RGB')) {
+    resolved = resolveRgbFunctions(resolved);
+  }
+
+  return resolved;
 }
 
 /**

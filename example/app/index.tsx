@@ -16,7 +16,12 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { useStyleFn, useTheme, usePropsFn } from 'react-native-stylefn';
+import {
+  useStyleFn,
+  useTheme,
+  usePropsFn,
+  useLayout,
+} from 'react-native-stylefn';
 
 // =============================================================================
 // Example: Dark Mode Toggle
@@ -1170,6 +1175,132 @@ function ChildrenFunctionDemo() {
 }
 
 // =============================================================================
+// Example: useLayout Hook (Component Dimensions)
+// =============================================================================
+
+function UseLayoutDemo() {
+  const { ref, width, height, onLayout, measured } = useLayout();
+
+  return (
+    <View
+      style={(t) => ({
+        marginBottom: t.theme.spacing[3],
+      })}
+    >
+      <Text
+        style={(t) => ({
+          fontSize: t.theme.fontSize.lg,
+          fontWeight: t.theme.fontWeight.bold,
+          color: t.colors.text,
+          marginBottom: t.theme.spacing[2],
+        })}
+      >
+        useLayout Hook ✓
+      </Text>
+
+      <View
+        style={(t) => ({
+          backgroundColor: t.colors.surface,
+          borderRadius: t.theme.borderRadius.lg,
+          padding: t.theme.spacing[4],
+          borderWidth: 1,
+          borderColor: t.colors.border,
+        })}
+      >
+        <Text
+          style={(t) => ({
+            fontSize: t.theme.fontSize.sm,
+            color: t.colors['text-muted'],
+            marginBottom: t.theme.spacing[3],
+          })}
+        >
+          useLayout() measures a component's own width & height. The children
+          below use the parent's measured dimensions to size themselves. Rotate
+          your device to see it update!
+        </Text>
+
+        {/* The measured container */}
+        <View
+          ref={ref}
+          onLayout={onLayout}
+          style={(t) => ({
+            backgroundColor: t.dark ? '#1e293b' : '#f1f5f9',
+            borderRadius: t.theme.borderRadius.md,
+            padding: t.theme.spacing[3],
+            minHeight: 120,
+          })}
+        >
+          {/* Children using parent's measured width/height */}
+          <Text
+            style={(t) => ({
+              fontSize: t.theme.fontSize.sm,
+              fontWeight: t.theme.fontWeight.semibold,
+              color: t.colors.text,
+              marginBottom: t.theme.spacing[2],
+            })}
+          >
+            Container: {Math.round(width)}×{Math.round(height)}
+            {!measured ? ' (measuring...)' : ''}
+          </Text>
+
+          {/* Half-width child */}
+          <View
+            style={(t) => ({
+              width: width / 2,
+              height: 32,
+              backgroundColor: t.theme.colors.primary,
+              borderRadius: t.theme.borderRadius.sm,
+              justifyContent: 'center' as const,
+              paddingHorizontal: 8,
+              marginBottom: t.theme.spacing[2],
+            })}
+          >
+            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
+              50% width ({Math.round(width / 2)}px)
+            </Text>
+          </View>
+
+          {/* Third-width child */}
+          <View
+            style={(t) => ({
+              width: width / 3,
+              height: 32,
+              backgroundColor: t.theme.colors.secondary,
+              borderRadius: t.theme.borderRadius.sm,
+              justifyContent: 'center' as const,
+              paddingHorizontal: 8,
+              marginBottom: t.theme.spacing[2],
+            })}
+          >
+            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
+              33% ({Math.round(width / 3)}px)
+            </Text>
+          </View>
+
+          {/* Responsive — changes color based on measured width */}
+          <View
+            style={(t) => ({
+              width: width * 0.75,
+              height: 32,
+              backgroundColor:
+                width > 300 ? t.theme.colors.success : t.theme.colors.warning,
+              borderRadius: t.theme.borderRadius.sm,
+              justifyContent: 'center' as const,
+              paddingHorizontal: 8,
+            })}
+          >
+            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
+              75% — {width > 300 ? 'wide ✓' : 'narrow'} (
+              {Math.round(width * 0.75)}px)
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// =============================================================================
 // Main App
 // =============================================================================
 
@@ -1219,6 +1350,7 @@ function AppContent() {
       <AccessibilityDemo />
       <TokenPropsDemo />
       <UsePropsFnDemo />
+      <UseLayoutDemo />
       <ChildrenFunctionDemo />
       <AnimatedStyleDemo />
       <CustomComponentDemo />

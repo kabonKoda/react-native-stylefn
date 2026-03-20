@@ -56,6 +56,8 @@ const fallbackTokens: StyleTokens = {
     evaluateCalc(expr, fallbackScreen, DEFAULT_INLINE_REM),
   rem: (v: number) => v * DEFAULT_INLINE_REM,
   inlineRem: DEFAULT_INLINE_REM,
+  width: fallbackScreen.width,
+  height: fallbackScreen.height,
 };
 
 /**

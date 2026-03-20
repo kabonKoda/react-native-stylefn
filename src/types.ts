@@ -385,6 +385,27 @@ export interface StyleTokens {
    * Configured via withStyleFn({ inlineRem }) in metro.config.js (default 16).
    */
   inlineRem: number;
+
+  /**
+   * Screen width in pixels. Convenience alias for `screen.width`.
+   *
+   * Useful for destructuring in children functions and style functions:
+   * ```tsx
+   * <View>{({ width, height }) => <Child style={{ width: width / 2 }} />}</View>
+   * ```
+   *
+   * **Note:** This is the screen width, not the component's own width.
+   * For component-level dimensions, use the `useLayout()` hook.
+   */
+  width: number;
+
+  /**
+   * Screen height in pixels. Convenience alias for `screen.height`.
+   *
+   * **Note:** This is the screen height, not the component's own height.
+   * For component-level dimensions, use the `useLayout()` hook.
+   */
+  height: number;
 }
 
 /**
@@ -502,6 +523,27 @@ export type ChildrenFunction<T = ReactNode> = T | ((tokens: StyleTokens) => T);
  * ```
  */
 export type PropFunction<T> = T | ((tokens: StyleTokens) => T);
+
+/**
+ * Layout dimensions measured from a component's `onLayout` event.
+ *
+ * Returned by the `useLayout()` hook.
+ *
+ * @example
+ * ```tsx
+ * const { ref, width, height } = useLayout();
+ *
+ * <View ref={ref} style={{ flex: 1 }}>
+ *   <View style={{ width: width / 2 }} />
+ * </View>
+ * ```
+ */
+export interface LayoutInfo {
+  /** Measured width of the component in pixels (0 before first layout) */
+  width: number;
+  /** Measured height of the component in pixels (0 before first layout) */
+  height: number;
+}
 
 /**
  * Parameters passed into the token resolver.
