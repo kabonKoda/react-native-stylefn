@@ -114,5 +114,16 @@ export function createBreakpointQuery(
       }
       return screenWidth >= lowerThreshold && screenWidth < upperThreshold;
     },
+    value: (name: BreakpointName): number | undefined => {
+      const threshold = thresholds[name];
+      if (threshold === undefined) {
+        console.warn(
+          `[stylefn] Unknown breakpoint "${name}". Available: ${Object.keys(
+            thresholds
+          ).join(', ')}`
+        );
+      }
+      return threshold;
+    },
   };
 }

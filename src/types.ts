@@ -175,6 +175,14 @@ export interface BreakpointQuery {
    * @example `t.breakpoint.between('md', 'xl')` — true for md and lg, false for sm and xl+
    */
   between: (lower: BreakpointName, upper: BreakpointName) => boolean;
+  /**
+   * Returns the pixel threshold for a named breakpoint.
+   * Useful when you need the raw number to compute widths, margins, etc.
+   * Returns `undefined` if the breakpoint name is unknown.
+   * @example `t.breakpoint.value('md')` → 375
+   * @example `t.breakpoint.value('xl')` → 768
+   */
+  value: (name: BreakpointName) => number | undefined;
 }
 
 /**
