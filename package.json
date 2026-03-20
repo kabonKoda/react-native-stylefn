@@ -1,6 +1,6 @@
 {
   "name": "react-native-stylefn",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "A Tailwind-inspired styling library that injects design tokens into every React Native component's style props automatically",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
