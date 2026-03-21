@@ -172,16 +172,26 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     // Extract keys from each theme section (defaults + user overrides + extend)
     const spacingKeys = resolveKeys('spacing', DEFAULT_THEME_KEYS.spacing);
     const fontSizeKeys = resolveKeys('fontSize', DEFAULT_THEME_KEYS.fontSize);
-    const borderRadiusKeys = resolveKeys('borderRadius', DEFAULT_THEME_KEYS.borderRadius);
-    const fontWeightKeys = resolveKeys('fontWeight', DEFAULT_THEME_KEYS.fontWeight);
+    const borderRadiusKeys = resolveKeys(
+      'borderRadius',
+      DEFAULT_THEME_KEYS.borderRadius
+    );
+    const fontWeightKeys = resolveKeys(
+      'fontWeight',
+      DEFAULT_THEME_KEYS.fontWeight
+    );
     const opacityKeys = resolveKeys('opacity', DEFAULT_THEME_KEYS.opacity);
     const screenKeys = resolveKeys('screens', DEFAULT_THEME_KEYS.screens);
 
     // Shadow keys: from both shadows and boxShadow (merge all sources)
-    const userShadowKeys = theme.shadows || theme.boxShadow
-      ? Object.keys({ ...theme.shadows, ...theme.boxShadow })
-      : [...DEFAULT_THEME_KEYS.shadows];
-    const extendShadowKeys = Object.keys({ ...extend.shadows, ...extend.boxShadow });
+    const userShadowKeys =
+      theme.shadows || theme.boxShadow
+        ? Object.keys({ ...theme.shadows, ...theme.boxShadow })
+        : [...DEFAULT_THEME_KEYS.shadows];
+    const extendShadowKeys = Object.keys({
+      ...extend.shadows,
+      ...extend.boxShadow,
+    });
     const shadowKeys = [...userShadowKeys, ...extendShadowKeys];
 
     // Color keys: flatten nested objects from config
@@ -189,13 +199,25 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     const userColorKeys = theme.colors
       ? flattenColorKeys(theme.colors)
       : [...DEFAULT_THEME_KEYS.colors];
-    const extendColorKeys = extend.colors ? flattenColorKeys(extend.colors) : [];
+    const extendColorKeys = extend.colors
+      ? flattenColorKeys(extend.colors)
+      : [];
     const configColorKeys = [...userColorKeys, ...extendColorKeys];
 
-    // CSS variable color keys (--color-* from global.css)
-    const cssColorKeys = [
+    // CSS variable color keys:
+    // 1. --color-* prefixed vars (backward compat, with prefix stripped)
+    // 2. ALL rawVars keys — covers shadcn/ui style vars like --primary, --destructive, etc.
+    const cssColorKeysFromColorPrefix = [
       ...Object.keys(parsedCss.light || {}),
       ...Object.keys(parsedCss.dark || {}),
+    ];
+    const cssColorKeysFromRawVars = [
+      ...Object.keys((parsedCss.rawVars && parsedCss.rawVars.light) || {}),
+      ...Object.keys((parsedCss.rawVars && parsedCss.rawVars.dark) || {}),
+    ];
+    const cssColorKeys = [
+      ...cssColorKeysFromColorPrefix,
+      ...cssColorKeysFromRawVars,
     ];
 
     // Merge all color keys
@@ -245,22 +267,56 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     dts.push('}');
     dts.push('');
 
+    // -------------------------------------------------------------------------
+    // Augment StyleSheet.create so that style functions receive StyleTokens
+    // instead of `any`. This makes `StyleSheet.create({ key: (t) => ({}) })`
+    // fully typed — `t` is inferred as `StyleTokens` automatically.
+    // -------------------------------------------------------------------------
+    dts.push("declare module 'react-native' {");
+    dts.push('  namespace StyleSheet {');
+    dts.push('    function create<T extends {');
+    dts.push('      [key: string]:');
+    dts.push("        | import('react-native').ViewStyle");
+    dts.push("        | import('react-native').TextStyle");
+    dts.push("        | import('react-native').ImageStyle");
+    dts.push(
+      "        | ((tokens: import('react-native-stylefn').StyleTokens) =>"
+    );
+    dts.push("            import('react-native-stylefn').LooseStyle<");
+    dts.push("              import('react-native').ViewStyle |");
+    dts.push("              import('react-native').TextStyle |");
+    dts.push("              import('react-native').ImageStyle");
+    dts.push('            > | false | null | undefined);');
+    dts.push('    }>(styles: T): T;');
+    dts.push('  }');
+    dts.push('}');
+    dts.push('');
+
     // Write stylefn.d.ts into the library's installed location
     // so users can reference it as: /// <reference types="react-native-stylefn/stylefn" />
     let libDir;
     try {
-      const pkgPath = require.resolve('react-native-stylefn/package.json', { paths: [projectRoot] });
+      const pkgPath = require.resolve('react-native-stylefn/package.json', {
+        paths: [projectRoot],
+      });
       libDir = path.dirname(pkgPath);
     } catch {
       // Fallback: node_modules/react-native-stylefn/
-      libDir = path.resolve(projectRoot, 'node_modules', 'react-native-stylefn');
+      libDir = path.resolve(
+        projectRoot,
+        'node_modules',
+        'react-native-stylefn'
+      );
     }
 
     if (fs.existsSync(libDir)) {
       const dtsPath = path.join(libDir, 'stylefn.d.ts');
       fs.writeFileSync(dtsPath, dts.join('\n'));
       console.log(
-        `[react-native-stylefn] ✓ Generated type declarations at ${path.relative(projectRoot, dtsPath)}`
+        `[react-native-stylefn] ✓ Generated type declarations at ${path.relative(
+          projectRoot,
+          dtsPath
+        )}`
       );
     } else {
       // Last resort: write to project root
@@ -295,7 +351,8 @@ function withStyleFn(config, options = {}) {
   const projectRoot = config.projectRoot || process.cwd();
   const cssInput = options.input || './global.css';
   const cssPath = path.resolve(projectRoot, cssInput);
-  const inlineRem = typeof options.inlineRem === 'number' ? options.inlineRem : 16;
+  const inlineRem =
+    typeof options.inlineRem === 'number' ? options.inlineRem : 16;
 
   // Locate the user's config file (rn-stylefn.config.js)
   const configInput = options.config || './rn-stylefn.config.js';
@@ -305,7 +362,10 @@ function withStyleFn(config, options = {}) {
   if (fs.existsSync(configPath)) {
     configFilePath = configPath;
     console.log(
-      `[react-native-stylefn] ✓ Found config at ${path.relative(projectRoot, configPath)}`
+      `[react-native-stylefn] ✓ Found config at ${path.relative(
+        projectRoot,
+        configPath
+      )}`
     );
   }
 
@@ -339,7 +399,9 @@ function withStyleFn(config, options = {}) {
   // so it doesn't pollute the user's project root.
   let libDir;
   try {
-    const pkgPath = require.resolve('react-native-stylefn/package.json', { paths: [projectRoot] });
+    const pkgPath = require.resolve('react-native-stylefn/package.json', {
+      paths: [projectRoot],
+    });
     libDir = path.dirname(pkgPath);
   } catch {
     // Fallback: node_modules/react-native-stylefn/
@@ -353,9 +415,8 @@ function withStyleFn(config, options = {}) {
     const result = {};
     for (const [key, value] of Object.entries(vars)) {
       if (typeof value === 'string') {
-        result[key] = value.replace(
-          /(\d+\.?\d*)rem/g,
-          (_, num) => String(parseFloat(num) * inlineRem)
+        result[key] = value.replace(/(\d+\.?\d*)rem/g, (_, num) =>
+          String(parseFloat(num) * inlineRem)
         );
       } else {
         result[key] = value;
