@@ -268,13 +268,16 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     dts.push('');
 
     // -------------------------------------------------------------------------
-    // Augment StyleSheet.create so that style functions receive StyleTokens
-    // instead of `any`. This makes `StyleSheet.create({ key: (t) => ({}) })`
-    // fully typed — `t` is inferred as `StyleTokens` automatically.
+    // Augment StyleSheetStatic so that StyleSheet.create accepts style functions
+    // and `t` is inferred as `StyleTokens` instead of `any`.
+    //
+    // We augment `StyleSheetStatic` (the interface) rather than the `StyleSheet`
+    // namespace because `StyleSheet.create` is a method on that interface.
+    // TypeScript will merge this overload with the existing RN signature.
     // -------------------------------------------------------------------------
     dts.push("declare module 'react-native' {");
-    dts.push('  namespace StyleSheet {');
-    dts.push('    function create<T extends {');
+    dts.push('  interface StyleSheetStatic {');
+    dts.push('    create<T extends {');
     dts.push('      [key: string]:');
     dts.push("        | import('react-native').ViewStyle");
     dts.push("        | import('react-native').TextStyle");

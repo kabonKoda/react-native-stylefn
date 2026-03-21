@@ -1,5 +1,4 @@
-/// <reference path="../src/stylefn.d.ts" />
-/// <reference path="../stylefn.d.ts" />
+/// <reference types="react-native-stylefn/stylefn" />
 
 // =============================================================================
 // Custom token declarations — augment this to get TypeScript autocomplete for

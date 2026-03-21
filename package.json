@@ -1,6 +1,6 @@
 {
   "name": "react-native-stylefn",
-  "version": "0.9.12",
+  "version": "0.9.13",
   "description": "A Tailwind-inspired styling library that injects design tokens into every React Native component's style props automatically",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -25,7 +25,17 @@
       "default": "./jsx-dev-runtime/index.js"
     },
     "./metro-config": "./metro-config/index.js",
+    "./stylefn": {
+      "types": "./stylefn.d.ts"
+    },
     "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "stylefn": [
+        "./stylefn.d.ts"
+      ]
+    }
   },
   "files": [
     "src",
@@ -35,6 +45,7 @@
     "jsx-dev-runtime",
     "metro-config",
     "scripts",
+    "stylefn.d.ts",
     "!**/__tests__",
     "!**/__fixtures__",
     "!**/__mocks__",
