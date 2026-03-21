@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from 'react';
 import {
   useColorScheme,
   Dimensions,
@@ -242,11 +248,16 @@ export function StyleProvider({
     ]
   );
 
-  // Update store synchronously before children render
+  // Update the store synchronously during render so getTokenStore() returns
+  // up-to-date values if any component calls it during this render cycle.
   setTokenStore(tokens);
 
-  // Notify listeners after render (for hooks like useStyleFn)
-  useEffect(() => {
+  // Notify subscribers synchronously after layout commits but BEFORE paint.
+  // useLayoutEffect guarantees this runs before the screen updates, which
+  // ensures useStyleFn (useSyncExternalStore) and __subscribeStyleFn
+  // components re-render in the same frame as the orientation/dimension change.
+  // useEffect (async, after paint) caused stale values until re-mount.
+  useLayoutEffect(() => {
     notifyTokenStoreListeners();
   }, [tokens]);
 
