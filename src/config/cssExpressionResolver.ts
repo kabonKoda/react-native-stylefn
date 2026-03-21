@@ -16,6 +16,13 @@
 // =============================================================================
 
 /**
+ * Tracks CSS variables + color expressions already warned about so each
+ * missing var only emits a single console.warn per session.
+ */
+const _warnedVars = new Set<string>();
+const _warnedExpressions = new Set<string>();
+
+/**
  * Resolve all var(--name) and var(--name, fallback) references in a string.
  * Iterates to support nested var() references (up to 10 levels).
  */
@@ -33,7 +40,8 @@ function resolveVarReferences(
         const resolved = vars[name];
         if (resolved !== undefined) return resolved;
         if (fallback !== undefined) return fallback.trim();
-        if (__DEV__) {
+        if (__DEV__ && !_warnedVars.has(name)) {
+          _warnedVars.add(name);
           console.warn(
             `[react-native-stylefn] CSS variable --${name} is not defined and has no fallback. ` +
               'The value will be empty. Define it in your global.css or provide a fallback: var(--' +
@@ -448,7 +456,8 @@ export function resolveColorExpression(
     /^hsla?\(\s*\)$/.test(resolved.trim()) ||
     /^rgba?\(\s*\)$/.test(resolved.trim())
   ) {
-    if (__DEV__) {
+    if (__DEV__ && !_warnedExpressions.has(value)) {
+      _warnedExpressions.add(value);
       console.warn(
         `[react-native-stylefn] Color expression "${value}" resolved to empty "${resolved}". ` +
           'Check that all referenced CSS variables are defined in your global.css.'
