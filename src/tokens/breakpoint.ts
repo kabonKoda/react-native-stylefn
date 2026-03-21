@@ -40,13 +40,17 @@ function deriveCurrentBreakpoint(
  * @example
  * ```tsx
  * const bp = createBreakpointQuery(400, { sm: 0, md: 375, lg: 430, xl: 768 });
- * bp.current     // 'md'
- * bp.up('md')    // true  (400 >= 375)
- * bp.up('lg')    // false (400 < 430)
- * bp.down('lg')  // true  (400 < 430)
- * bp.down('md')  // false (400 >= 375)
- * bp.not('sm')   // true  (current is 'md', not 'sm')
- * bp.between('md', 'xl') // true  (400 >= 375 AND 400 < 768)
+ * bp.current              // 'md'
+ * bp.up('md')             // true  (400 >= 375)
+ * bp.up('lg')             // false (400 < 430)
+ * bp.down('lg')           // true  (400 < 430)
+ * bp.down('md')           // false (400 >= 375)
+ * bp.not('sm')            // true  (current is 'md', not 'sm')
+ * bp.between('md', 'xl')  // true  (400 >= 375 AND 400 < 768)
+ * bp.greaterThan('md')    // true  (400 > 375)
+ * bp.greaterThan('md', 25) // false (400 > 400 is false)
+ * bp.lessThan('lg')       // true  (400 < 430)
+ * bp.lessThan('md')       // false (400 < 375 is false)
  * ```
  */
 export function createBreakpointQuery(
@@ -124,6 +128,30 @@ export function createBreakpointQuery(
         );
       }
       return threshold;
+    },
+    greaterThan: (name: BreakpointName, offset: number = 0): boolean => {
+      const threshold = thresholds[name];
+      if (threshold === undefined) {
+        console.warn(
+          `[stylefn] Unknown breakpoint "${name}". Available: ${Object.keys(
+            thresholds
+          ).join(', ')}`
+        );
+        return false;
+      }
+      return screenWidth > threshold + offset;
+    },
+    lessThan: (name: BreakpointName, offset: number = 0): boolean => {
+      const threshold = thresholds[name];
+      if (threshold === undefined) {
+        console.warn(
+          `[stylefn] Unknown breakpoint "${name}". Available: ${Object.keys(
+            thresholds
+          ).join(', ')}`
+        );
+        return false;
+      }
+      return screenWidth < threshold + offset;
     },
   };
 }

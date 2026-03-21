@@ -183,6 +183,47 @@ export interface BreakpointQuery {
    * @example `t.breakpoint.value('xl')` → 768
    */
   value: (name: BreakpointName) => number | undefined;
+  /**
+   * True when screen width is strictly **greater than** the breakpoint threshold,
+   * plus an optional pixel offset.
+   *
+   * Unlike `up()` which uses `>=`, this uses `>` so the boundary pixel itself
+   * is excluded.
+   *
+   * @param name - The breakpoint name to compare against.
+   * @param offset - Optional pixel offset added to the threshold before comparing.
+   *   Use a positive value to require more room beyond the breakpoint,
+   *   or a negative value to trigger slightly before it.
+   *
+   * @example
+   * ```tsx
+   * // screen = 400, md threshold = 375
+   * t.breakpoint.greaterThan('md')       // true  (400 > 375)
+   * t.breakpoint.greaterThan('md', 25)   // true  (400 > 375 + 25 = 400) → false (not strictly greater)
+   * t.breakpoint.greaterThan('md', 10)   // true  (400 > 375 + 10 = 385)
+   * t.breakpoint.greaterThan('lg')       // false (400 > 430 is false)
+   * ```
+   */
+  greaterThan: (name: BreakpointName, offset?: number) => boolean;
+  /**
+   * True when screen width is strictly **less than** the breakpoint threshold,
+   * plus an optional pixel offset.
+   *
+   * @param name - The breakpoint name to compare against.
+   * @param offset - Optional pixel offset added to the threshold before comparing.
+   *   Use a positive value to widen the "less than" range,
+   *   or a negative value to narrow it.
+   *
+   * @example
+   * ```tsx
+   * // screen = 400, md threshold = 375, lg threshold = 430
+   * t.breakpoint.lessThan('lg')          // true  (400 < 430)
+   * t.breakpoint.lessThan('lg', -20)     // true  (400 < 430 - 20 = 410)
+   * t.breakpoint.lessThan('lg', -40)     // false (400 < 430 - 40 = 390)
+   * t.breakpoint.lessThan('md')          // false (400 < 375 is false)
+   * ```
+   */
+  lessThan: (name: BreakpointName, offset?: number) => boolean;
 }
 
 /**
