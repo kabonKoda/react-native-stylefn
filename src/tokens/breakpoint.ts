@@ -47,10 +47,10 @@ function deriveCurrentBreakpoint(
  * bp.down('md')           // false (400 >= 375)
  * bp.not('sm')            // true  (current is 'md', not 'sm')
  * bp.between('md', 'xl')  // true  (400 >= 375 AND 400 < 768)
- * bp.greaterThan('md')    // true  (400 > 375)
- * bp.greaterThan('md', 25) // false (400 > 400 is false)
- * bp.lessThan('lg')       // true  (400 < 430)
- * bp.lessThan('md')       // false (400 < 375 is false)
+ * bp.greaterThan('md', 300)  // true  — md threshold (375) > 300
+ * bp.greaterThan('md', 400)  // false — md threshold (375) > 400 is false
+ * bp.lessThan('md', 400)     // true  — md threshold (375) < 400
+ * bp.lessThan('md', 300)     // false — md threshold (375) < 300 is false
  * ```
  */
 export function createBreakpointQuery(
@@ -129,7 +129,7 @@ export function createBreakpointQuery(
       }
       return threshold;
     },
-    greaterThan: (name: BreakpointName, offset: number = 0): boolean => {
+    greaterThan: (name: BreakpointName, value: number): boolean => {
       const threshold = thresholds[name];
       if (threshold === undefined) {
         console.warn(
@@ -139,9 +139,9 @@ export function createBreakpointQuery(
         );
         return false;
       }
-      return screenWidth > threshold + offset;
+      return threshold > value;
     },
-    lessThan: (name: BreakpointName, offset: number = 0): boolean => {
+    lessThan: (name: BreakpointName, value: number): boolean => {
       const threshold = thresholds[name];
       if (threshold === undefined) {
         console.warn(
@@ -151,7 +151,7 @@ export function createBreakpointQuery(
         );
         return false;
       }
-      return screenWidth < threshold + offset;
+      return threshold < value;
     },
   };
 }

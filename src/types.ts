@@ -184,46 +184,37 @@ export interface BreakpointQuery {
    */
   value: (name: BreakpointName) => number | undefined;
   /**
-   * True when screen width is strictly **greater than** the breakpoint threshold,
-   * plus an optional pixel offset.
+   * True when the named breakpoint's pixel threshold is strictly **greater than**
+   * the value you provide. You give the number — it looks up the breakpoint for you.
    *
-   * Unlike `up()` which uses `>=`, this uses `>` so the boundary pixel itself
-   * is excluded.
-   *
-   * @param name - The breakpoint name to compare against.
-   * @param offset - Optional pixel offset added to the threshold before comparing.
-   *   Use a positive value to require more room beyond the breakpoint,
-   *   or a negative value to trigger slightly before it.
+   * @param name - The breakpoint name (e.g. `'md'`, `'lg'`).
+   * @param value - The pixel value to compare against the breakpoint threshold.
    *
    * @example
    * ```tsx
-   * // screen = 400, md threshold = 375
-   * t.breakpoint.greaterThan('md')       // true  (400 > 375)
-   * t.breakpoint.greaterThan('md', 25)   // true  (400 > 375 + 25 = 400) → false (not strictly greater)
-   * t.breakpoint.greaterThan('md', 10)   // true  (400 > 375 + 10 = 385)
-   * t.breakpoint.greaterThan('lg')       // false (400 > 430 is false)
+   * // md threshold = 375
+   * t.breakpoint.greaterThan('md', 300)  // true  (375 > 300)
+   * t.breakpoint.greaterThan('md', 375)  // false (375 > 375 is false)
+   * t.breakpoint.greaterThan('md', 400)  // false (375 > 400 is false)
    * ```
    */
-  greaterThan: (name: BreakpointName, offset?: number) => boolean;
+  greaterThan: (name: BreakpointName, value: number) => boolean;
   /**
-   * True when screen width is strictly **less than** the breakpoint threshold,
-   * plus an optional pixel offset.
+   * True when the named breakpoint's pixel threshold is strictly **less than**
+   * the value you provide. You give the number — it looks up the breakpoint for you.
    *
-   * @param name - The breakpoint name to compare against.
-   * @param offset - Optional pixel offset added to the threshold before comparing.
-   *   Use a positive value to widen the "less than" range,
-   *   or a negative value to narrow it.
+   * @param name - The breakpoint name (e.g. `'md'`, `'lg'`).
+   * @param value - The pixel value to compare against the breakpoint threshold.
    *
    * @example
    * ```tsx
-   * // screen = 400, md threshold = 375, lg threshold = 430
-   * t.breakpoint.lessThan('lg')          // true  (400 < 430)
-   * t.breakpoint.lessThan('lg', -20)     // true  (400 < 430 - 20 = 410)
-   * t.breakpoint.lessThan('lg', -40)     // false (400 < 430 - 40 = 390)
-   * t.breakpoint.lessThan('md')          // false (400 < 375 is false)
+   * // md threshold = 375
+   * t.breakpoint.lessThan('md', 400)  // true  (375 < 400)
+   * t.breakpoint.lessThan('md', 375)  // false (375 < 375 is false)
+   * t.breakpoint.lessThan('md', 300)  // false (375 < 300 is false)
    * ```
    */
-  lessThan: (name: BreakpointName, offset?: number) => boolean;
+  lessThan: (name: BreakpointName, value: number) => boolean;
 }
 
 /**
