@@ -1,5 +1,5 @@
 import type { StyleFnConfig } from '../types';
-import { defaultConfig } from './defaults';
+import { defaultConfig, defaultTheme } from './defaults';
 
 /**
  * Loads the user's rn-stylefn.config.js configuration.
@@ -12,10 +12,19 @@ export function loadConfig(userConfig?: Partial<StyleFnConfig>): StyleFnConfig {
     return { ...defaultConfig };
   }
 
+  const userTheme = userConfig.theme;
   return {
     darkMode: userConfig.darkMode ?? defaultConfig.darkMode,
-    theme: userConfig.theme
-      ? { ...defaultConfig.theme, ...userConfig.theme }
+    theme: userTheme
+      ? {
+          ...defaultConfig.theme,
+          ...userTheme,
+          // Colors always merge with the palette so the Tailwind defaults are
+          // never wiped out when the user provides their own color keys.
+          colors: userTheme.colors
+            ? { ...defaultTheme.colors, ...userTheme.colors }
+            : defaultTheme.colors,
+        }
       : defaultConfig.theme,
   };
 }

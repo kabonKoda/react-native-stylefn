@@ -48,25 +48,40 @@ function deepMerge(
  * - `theme.extend.spacing: { 16: 64 }` → **adds** `16: 64` to the existing spacing
  *   (all defaults + any top-level overrides are preserved)
  */
-export function resolveTheme(
-  userTheme?: Partial<ThemeConfig>
-): ThemeConfig {
+export function resolveTheme(userTheme?: Partial<ThemeConfig>): ThemeConfig {
   if (!userTheme) {
     return { ...defaultTheme };
   }
 
   const { extend, ...overrides } = userTheme;
 
-  // Step 1: Start with defaults, then REPLACE any sections the user explicitly provided.
-  // This is a shallow merge at the section level (like Tailwind's theme override behavior).
-  // If the user provides `theme.spacing`, it completely replaces `defaultTheme.spacing`.
-  const merged: Record<string, unknown> = { ...defaultTheme as unknown as Record<string, unknown> };
+  // Step 1: Start with defaults, then merge user overrides section by section.
+  // Most sections (spacing, fontSize, etc.) are REPLACED entirely when the user provides them.
+  // Colors are MERGED with the default palette so the Tailwind palette is always available;
+  // the user's colors take precedence for any matching keys.
+  const merged: Record<string, unknown> = {
+    ...(defaultTheme as unknown as Record<string, unknown>),
+  };
 
   for (const key in overrides) {
     if (Object.prototype.hasOwnProperty.call(overrides, key)) {
       const val = (overrides as Record<string, unknown>)[key];
       if (val !== undefined) {
-        merged[key] = val; // Replace the entire section
+        if (
+          key === 'colors' &&
+          typeof val === 'object' &&
+          val !== null &&
+          !Array.isArray(val)
+        ) {
+          // Colors always merge with the palette so users keep white, black,
+          // slate-50…rose-950 etc. even when they provide custom color keys.
+          merged[key] = {
+            ...(merged[key] as Record<string, unknown>),
+            ...(val as Record<string, unknown>),
+          };
+        } else {
+          merged[key] = val; // Replace the entire section for all other keys
+        }
       }
     }
   }

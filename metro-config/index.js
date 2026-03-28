@@ -116,6 +116,54 @@ function toUnion(keys) {
 // These are included in type declarations so users always get autocomplete
 // for default keys even when they only use theme.extend.
 // =============================================================================
+
+// Full Tailwind v3 color palette — generated programmatically to match
+// tailwindColors.ts so the type generator always includes all shades.
+const TAILWIND_COLOR_FAMILIES = [
+  'slate',
+  'gray',
+  'zinc',
+  'neutral',
+  'stone',
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'purple',
+  'fuchsia',
+  'pink',
+  'rose',
+];
+const TAILWIND_SHADES = [
+  '50',
+  '100',
+  '200',
+  '300',
+  '400',
+  '500',
+  '600',
+  '700',
+  '800',
+  '900',
+  '950',
+];
+const TAILWIND_COLOR_KEYS = [
+  'white',
+  'black',
+  ...TAILWIND_COLOR_FAMILIES.flatMap((f) =>
+    TAILWIND_SHADES.map((s) => `${f}-${s}`)
+  ),
+];
+
 const DEFAULT_THEME_KEYS = {
   spacing: ['0', '1', '2', '3', '4', '5', '6', '8', '10', '12'],
   fontSize: ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl'],
@@ -123,7 +171,15 @@ const DEFAULT_THEME_KEYS = {
   fontWeight: ['normal', 'medium', 'semibold', 'bold'],
   opacity: ['0', '25', '50', '75', '100'],
   screens: ['sm', 'md', 'lg', 'xl'],
-  colors: ['primary', 'secondary', 'danger', 'success', 'warning'],
+  // Semantic defaults on top of the Tailwind palette
+  colors: [
+    ...TAILWIND_COLOR_KEYS,
+    'primary',
+    'secondary',
+    'danger',
+    'success',
+    'warning',
+  ],
   shadows: ['sm', 'md', 'lg'],
 };
 
@@ -194,37 +250,40 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     });
     const shadowKeys = [...userShadowKeys, ...extendShadowKeys];
 
-    // Color keys: flatten nested objects from config
-    // If user provides top-level colors, it replaces defaults; extend adds on top
-    const userColorKeys = theme.colors
-      ? flattenColorKeys(theme.colors)
-      : [...DEFAULT_THEME_KEYS.colors];
+    // Color keys:
+    // • ALWAYS include the full Tailwind palette so it shows in autocomplete
+    //   regardless of whether the user provides a theme.colors override.
+    // • Merge user's theme.colors on top (flattened nested objects).
+    // • Only include CSS --color-* vars (not all raw vars like --ring, --radius,
+    //   --shadow-* which are NOT colors and must not appear in t.theme.colors).
+    // • Merge extend.colors last.
+    const userColorKeys = theme.colors ? flattenColorKeys(theme.colors) : [];
     const extendColorKeys = extend.colors
       ? flattenColorKeys(extend.colors)
       : [];
-    const configColorKeys = [...userColorKeys, ...extendColorKeys];
 
-    // CSS variable color keys:
-    // 1. --color-* prefixed vars (backward compat, with prefix stripped) → t.colors.*
-    // 2. rawVars keys that are NOT --color-* (e.g. --primary, --destructive from shadcn)
-    //    These are accessible via var(--primary) in config but also as t.colors.primary.
-    //    We must EXCLUDE keys that start with 'color-' because those are the un-stripped
-    //    duplicates of the --color-* vars already in cssColorKeysFromColorPrefix.
-    const cssColorKeysFromColorPrefix = [
+    // CSS --color-* vars only (parsedCss.light already has the prefix stripped)
+    const cssColorKeys = [
       ...Object.keys(parsedCss.light || {}),
       ...Object.keys(parsedCss.dark || {}),
     ];
-    const cssColorKeysFromRawVars = [
-      ...Object.keys((parsedCss.rawVars && parsedCss.rawVars.light) || {}),
-      ...Object.keys((parsedCss.rawVars && parsedCss.rawVars.dark) || {}),
-    ].filter((k) => !k.startsWith('color-')); // Exclude color-* duplicates
-    const cssColorKeys = [
-      ...cssColorKeysFromColorPrefix,
-      ...cssColorKeysFromRawVars,
-    ];
 
-    // Merge all color keys
-    const allColorKeys = [...configColorKeys, ...cssColorKeys];
+    const allColorKeys = [
+      // Full Tailwind v3 palette — always available
+      ...TAILWIND_COLOR_KEYS,
+      // Semantic defaults
+      'primary',
+      'secondary',
+      'danger',
+      'success',
+      'warning',
+      // User's theme.colors (nested objects flattened, overrides palette keys)
+      ...userColorKeys,
+      // CSS --color-* variables
+      ...cssColorKeys,
+      // User's theme.extend.colors (additive)
+      ...extendColorKeys,
+    ];
 
     // Generate the declaration file
     // IMPORTANT: `export {}` makes this a module file, so `declare module`
