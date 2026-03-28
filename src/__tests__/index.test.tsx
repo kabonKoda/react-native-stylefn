@@ -708,19 +708,34 @@ describe('StyleTokens calc method', () => {
 });
 
 // =============================================================================
-// Shadows: boxShadow format
+// Shadows: plain string format
 // =============================================================================
 
-describe('Shadow defaults use boxShadow', () => {
-  it('shadow tokens use boxShadow string format', () => {
+describe('Shadow defaults are plain strings', () => {
+  it('shadow tokens are plain CSS boxShadow strings', () => {
     const tokens = getTokenStore();
-    const smShadow = tokens.theme.shadows.sm as { boxShadow: string };
-    expect(smShadow.boxShadow).toBeDefined();
-    expect(typeof smShadow.boxShadow).toBe('string');
-    expect(smShadow).not.toHaveProperty('shadowOffset');
-    expect(smShadow).not.toHaveProperty('shadowOpacity');
-    expect(smShadow).not.toHaveProperty('shadowRadius');
-    expect(smShadow).not.toHaveProperty('elevation');
+    const smShadow = tokens.theme.shadows.sm;
+    // Must be a plain string — directly usable as the `boxShadow` style prop
+    expect(typeof smShadow).toBe('string');
+    expect(smShadow.length).toBeGreaterThan(0);
+    // Must NOT be an object (no old { boxShadow: '...' } wrapping)
+    expect(typeof smShadow).not.toBe('object');
+  });
+
+  it('all default shadow keys exist as strings', () => {
+    const tokens = getTokenStore();
+    expect(typeof tokens.theme.shadows.sm).toBe('string');
+    expect(typeof tokens.theme.shadows.md).toBe('string');
+    expect(typeof tokens.theme.shadows.lg).toBe('string');
+  });
+
+  it('shadow string can be assigned directly to boxShadow style prop', () => {
+    const tokens = getTokenStore();
+    // This type assignment should compile without errors:
+    const style: { boxShadow?: string } = {
+      boxShadow: tokens.theme.shadows.sm,
+    };
+    expect(typeof style.boxShadow).toBe('string');
   });
 });
 

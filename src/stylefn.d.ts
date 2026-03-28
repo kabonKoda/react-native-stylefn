@@ -1,67 +1,83 @@
 /**
  * Type augmentation for React Native style functions.
  *
- * ## Style Props (automatic via postinstall)
+ * This is the SOURCE stub. At build time, the generated stylefn.d.ts
+ * (produced by withStyleFn in metro.config.js) overwrites the compiled
+ * version with project-specific theme key overrides.
  *
- * The primary mechanism is scripts/setup.js which patches StyleProp<T> and
- * StyleSheet.create directly in React Native's type definitions. This runs
- * automatically as a postinstall hook and makes style functions work on ALL
- * components with full TypeScript support — no manual configuration needed.
+ * This stub provides:
+ * 1. A generic StyleSheet.create augmentation that accepts style functions
+ *    (works even before the generated file exists)
+ * 2. Documentation for the type system
  *
- * ## Non-Style Props (automatic via jsxImportSource)
+ * ## How it works
  *
- * The library provides a custom JSX runtime (jsx-runtime/ and jsx-dev-runtime/)
- * that overrides TypeScript's LibraryManagedAttributes. When jsxImportSource
- * is set to "react-native-stylefn" in tsconfig.json, ALL component props
- * automatically accept token functions `(tokens: StyleTokens) => T` in
- * addition to their declared type `T`.
+ * The generated stylefn.d.ts (at the package root) augments
+ * ThemeKeyOverrides with your actual theme keys from config + CSS.
+ * Users reference it via:
+ *   /// <reference types="react-native-stylefn/stylefn" />
  *
- * ## Children as Functions (render children pattern)
- *
- * Components also support the render-children pattern where children is a
- * function receiving tokens. The Babel plugin wraps function children with
- * `__resolveChildren()` at compile time.
- *
- * @example
- * ```tsx
- * <View>
- *   {(t) => (
- *     <Text style={{ color: t.colors.text }}>
- *       {t.dark ? 'Dark Mode' : 'Light Mode'}
- *     </Text>
- *   )}
- * </View>
- * ```
- *
- * This means components can declare plain types:
- *
- * @example
- * ```tsx
- * function Box({ width, color }: { width: number; color: string }) {
- *   return <View style={{ width, backgroundColor: color }} />;
- * }
- *
- * // Consumers can pass token functions — TypeScript is happy!
- * <Box
- *   width={({ orientation }) => orientation.landscape ? 200 : 120}
- *   color={({ dark }) => dark ? '#fff' : '#000'}
- * />
- * ```
- *
- * The Babel plugin automatically wraps these token functions with
- * __resolveProp() at compile time, so props arrive as resolved values
- * at runtime.
- *
- * Setup (added automatically by postinstall):
- * ```json
- * // tsconfig.json
- * {
- *   "compilerOptions": {
- *     "jsx": "react-jsx",
- *     "jsxImportSource": "react-native-stylefn"
- *   }
- * }
- * ```
+ * This uses TypeScript module resolution (not file paths) so it
+ * correctly finds the generated file in node_modules.
  */
 
 export {};
+
+// =============================================================================
+// Generic StyleSheet.create augmentation
+//
+// This ensures StyleSheet.create accepts style functions even when
+// the generated stylefn.d.ts hasn't been created yet (e.g. first install).
+// The generated file will provide a more specific augmentation with
+// actual theme keys for better autocomplete.
+// =============================================================================
+
+declare module 'react-native' {
+  // Strategy 1: Classic StyleSheetStatic (RN < 0.76)
+  interface StyleSheetStatic {
+    create<
+      T extends {
+        [key: string]:
+          | import('react-native').ViewStyle
+          | import('react-native').TextStyle
+          | import('react-native').ImageStyle
+          | ((
+              tokens: import('react-native-stylefn').StyleTokens
+            ) =>
+              | import('react-native-stylefn').LooseStyle<
+                  | import('react-native').ViewStyle
+                  | import('react-native').TextStyle
+                  | import('react-native').ImageStyle
+                >
+              | false
+              | null
+              | undefined);
+      }
+    >(
+      styles: T
+    ): T;
+  }
+
+  // Strategy 2: Namespace augmentation (RN 0.76+ where StyleSheet is a namespace)
+  namespace StyleSheet {
+    function create<
+      T extends {
+        [key: string]:
+          | import('react-native').ViewStyle
+          | import('react-native').TextStyle
+          | import('react-native').ImageStyle
+          | ((
+              tokens: import('react-native-stylefn').StyleTokens
+            ) =>
+              | import('react-native-stylefn').LooseStyle<
+                  | import('react-native').ViewStyle
+                  | import('react-native').TextStyle
+                  | import('react-native').ImageStyle
+                >
+              | false
+              | null
+              | undefined);
+      }
+    >(styles: T): T;
+  }
+}

@@ -680,31 +680,30 @@ export function resolveColorMap(
 /**
  * Resolve all CSS expressions in a shadow map.
  * Handles both string values and { boxShadow: string } objects.
- * Strings are wrapped in { boxShadow: value } for RN compatibility.
+ * Always returns plain strings suitable for use directly as the `boxShadow`
+ * style property value in React Native.
  */
 export function resolveShadowMap(
   shadows: Record<string, string | object> | undefined,
   vars: Record<string, string>
-): Record<string, object> {
+): Record<string, string> {
   if (!shadows) return {};
 
-  const result: Record<string, object> = {};
+  const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(shadows)) {
     if (typeof value === 'string') {
-      const resolved = resolveShadowExpression(value, vars);
-      result[key] = { boxShadow: resolved };
+      // Plain string — resolve var()/hsl()/rgb() and store as-is
+      result[key] = resolveShadowExpression(value, vars);
     } else if (value && typeof value === 'object') {
-      // Already an object — resolve any string values inside it
+      // Object with a boxShadow property — extract and resolve the string
       const obj = value as Record<string, unknown>;
-      const resolvedObj: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(obj)) {
-        if (typeof v === 'string' && containsCssExpression(v)) {
-          resolvedObj[k] = resolveShadowExpression(v, vars);
-        } else {
-          resolvedObj[k] = v;
-        }
+      const boxShadow = obj.boxShadow;
+      if (typeof boxShadow === 'string') {
+        result[key] = containsCssExpression(boxShadow)
+          ? resolveShadowExpression(boxShadow, vars)
+          : boxShadow;
       }
-      result[key] = resolvedObj;
+      // Ignore objects without a boxShadow string — not supported
     }
   }
   return result;

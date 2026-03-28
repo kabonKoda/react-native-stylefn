@@ -33,27 +33,37 @@ type _StyleFnDimension =
   | `${number}/${number}`
   | `${number}vw`
   | `${number}vh`
-  | `${number}rem`;
+  | `${number}rem`
+  | `${number}em`
+  | 'full'
+  | 'screen'
+  | 'auto'
+  | 'fit-content';
 
 // Loosened style type: all RN style properties are optional and also accept
-// custom dimension strings. This gives full autocomplete for style properties
-// while allowing stylefn-specific string values.
+// custom dimension strings and boolean token values (e.g. t.boldText, t.dark,
+// t.platform.ios). This gives full autocomplete for style properties while
+// allowing stylefn-specific string values and boolean token accessors.
 type _LooseAllStyles = {
-  [K in keyof _AllRNStyles]?: _AllRNStyles[K] | _StyleFnDimension;
+  [K in keyof _AllRNStyles]?: _AllRNStyles[K] | _StyleFnDimension | boolean;
 };
 
 // A style function with a properly typed return — provides autocomplete for
-// ALL React Native style properties when used as a fallback (i.e. when the
-// postinstall patch of StyleProp<T> hasn't been applied).
+// ALL React Native style properties with loosened value types (dimension
+// strings, boolean token values, etc.).
 type _StyleFnForStyle = (
   _tokens: _StyleFnTokens
 ) => _LooseAllStyles | false | null | undefined;
 
 // A children function that receives ChildrenTokens (StyleTokens + layout).
 type _ChildrenFnForTokens = (_tokens: _ChildrenTokens) => React.ReactNode;
-type _StylePropHasFn<T> = ((_tokens: _StyleFnTokens) => any) extends T
-  ? true
-  : false;
+
+// Strip callable (function) types from a union. Used on style props so that
+// any function member already present in StyleProp<T> (e.g. from the
+// postinstall patch) is replaced by our single _StyleFnForStyle type.
+// This ensures there is always exactly ONE function signature in the union,
+// which lets TypeScript infer the `t` parameter type without ambiguity.
+type _StripCallable<T> = T extends (...args: any[]) => any ? never : T;
 
 type _WithTokenFunctions<P> = {
   [K in keyof P]: K extends 'children'
@@ -85,19 +95,17 @@ type _WithTokenFunctions<P> = {
       : K extends `handle${string}`
       ? P[K]
       : K extends 'style' | `${string}Style` | `${string}style`
-      ? _StylePropHasFn<P[K]> extends true
-        ? P[K]
-        :
-            | P[K]
-            | _StyleFnForStyle
-            | ReadonlyArray<
-                | _LooseAllStyles
-                | _StyleFnForStyle
-                | _RegisteredStyle
-                | false
-                | null
-                | undefined
-              >
+      ?
+          | _StripCallable<P[K]>
+          | _StyleFnForStyle
+          | ReadonlyArray<
+              | _LooseAllStyles
+              | _StyleFnForStyle
+              | _RegisteredStyle
+              | false
+              | null
+              | undefined
+            >
       : P[K] | ((_tokens: _StyleFnTokens) => NonNullable<P[K]>)
     : P[K];
 };

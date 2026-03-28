@@ -20,7 +20,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const MARKER = '/* react-native-stylefn patched */';
+const MARKER = '/* react-native-stylefn patched v2 */';
+const OLD_MARKER = '/* react-native-stylefn patched */';
 const STYLE_FN_TYPE = `((tokens: import('react-native-stylefn').StyleTokens) => import('react-native-stylefn').LooseStyle<T> | false | null | undefined)`;
 
 /**
@@ -49,9 +50,39 @@ function patchFile(filePath) {
   if (!fs.existsSync(filePath)) return false;
 
   try {
-    const content = fs.readFileSync(filePath, 'utf8');
+    let content = fs.readFileSync(filePath, 'utf8');
 
-    if (content.includes(MARKER)) return false; // Already patched
+    if (content.includes(MARKER)) return false; // Already patched with latest version
+
+    // If an older patch (v1, without LooseStyle) is present, strip it first so
+    // the replacement patterns below can match the canonical StyleProp definition.
+    if (content.includes(OLD_MARKER)) {
+      // Remove old v1 marker + the patched StyleProp line(s), restoring originals.
+      // Generated-types old form:
+      content = content.replace(
+        new RegExp(
+          OLD_MARKER.replace(/\//g, '\\/').replace(/\*/g, '\\*') +
+            '\\n' +
+            'export type StyleProp<T> = null \\| void \\| T \\| false \\| "" \\| ReadonlyArray<StyleProp<T>> \\| [^;]+;'
+        ),
+        'export type StyleProp<T> = null | void | T | false | "" | ReadonlyArray<StyleProp<T>>;'
+      );
+      // Multi-line (with RegisteredStyle) old form:
+      content = content.replace(
+        new RegExp(
+          OLD_MARKER.replace(/\//g, '\\/').replace(/\*/g, '\\*') +
+            '\\nexport type StyleProp<T> =[^;]+;',
+          's'
+        ),
+        (m) => {
+          // Restore to the closest canonical form we can detect
+          if (m.includes('RegisteredStyle')) {
+            return 'export type StyleProp<T> =\n  | T\n  | RegisteredStyle<T>\n  | RecursiveArray<T | RegisteredStyle<T> | Falsy>\n  | Falsy;';
+          }
+          return 'export type StyleProp<T> = T | RecursiveArray<T | Falsy> | Falsy;';
+        }
+      );
+    }
 
     // RN 0.83+ generated types
     const generatedPattern =
@@ -169,7 +200,7 @@ function ensureTypeStub(rnDir) {
         `  highContrast: boolean;`,
         `}`,
         `export type StyleFnDimension = \`\${number}/\${number}\` | \`\${number}vw\` | \`\${number}vh\` | \`\${number}rem\`;`,
-        `export type LooseStyle<S> = S extends any ? { [K in keyof S]?: S[K] | StyleFnDimension } : never;`,
+        `export type LooseStyle<S> = S extends any ? { [K in keyof S]?: S[K] | StyleFnDimension | boolean } : never;`,
       ].join('\n') + '\n',
       'utf8'
     );
@@ -311,15 +342,26 @@ function setup() {
   if (fs.existsSync(stylesheetFile)) {
     try {
       let content = fs.readFileSync(stylesheetFile, 'utf8');
-      const STYLESHEET_MARKER = '/* react-native-stylefn stylesheet patched */';
+      const STYLESHEET_MARKER =
+        '/* react-native-stylefn stylesheet patched v2 */';
+      const OLD_STYLESHEET_MARKER =
+        '/* react-native-stylefn stylesheet patched */';
+      // Strip old stylesheet marker so patterns can match if upgrading
+      if (
+        content.includes(OLD_STYLESHEET_MARKER) &&
+        !content.includes(STYLESHEET_MARKER)
+      ) {
+        content = content.replace(OLD_STYLESHEET_MARKER + '\n', '');
+      }
       if (!content.includes(STYLESHEET_MARKER)) {
         let changed = false;
 
-        // 1. Patch NamedStyles to accept style functions as values
+        // 1. Patch NamedStyles to accept style functions with LooseStyle return types
         const namedStylesPattern =
           /type NamedStyles<T>\s*=\s*\{[^}]*\[P in keyof T\]\s*:\s*ViewStyle\s*\|\s*TextStyle\s*\|\s*ImageStyle\s*\};/;
         if (namedStylesPattern.test(content)) {
-          const fnType = `((tokens: import('react-native-stylefn').StyleTokens) => (ViewStyle | TextStyle | ImageStyle) | false | null | undefined)`;
+          const looseStyleType = `import('react-native-stylefn').LooseStyle<ViewStyle | TextStyle | ImageStyle>`;
+          const fnType = `((tokens: import('react-native-stylefn').StyleTokens) => ${looseStyleType} | false | null | undefined)`;
           content = content.replace(
             namedStylesPattern,
             `${STYLESHEET_MARKER}\n  type NamedStyles<T> = {[P in keyof T]: ViewStyle | TextStyle | ImageStyle | ${fnType}};\n` +

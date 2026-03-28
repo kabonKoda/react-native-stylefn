@@ -1,8 +1,8 @@
 import { getTokenStore } from './store';
 import type { ScreenInfo } from './types';
 
-/** Matches strings like "50vw", "100vh", "33.5vw", "0.625rem", etc. */
-const CSS_UNIT_RE = /^(-?\d+\.?\d*)(vh|vw|rem)$/;
+/** Matches strings like "50vw", "100vh", "33.5vw", "0.625rem", "100em", etc. */
+const CSS_UNIT_RE = /^(-?\d+\.?\d*)(vh|vw|rem|em)$/;
 
 /** Matches fraction strings like "1/2", "2/3", "3/4", "5/6", etc. */
 const FRACTION_RE = /^(\d+)\/(\d+)$/;
@@ -68,7 +68,13 @@ export function rem(value: number): number {
 export function parseViewportValue(value: unknown): unknown {
   if (typeof value !== 'string') return value;
 
-  // Check for fraction strings first: '1/2' → '50%'
+  // Check for keyword strings first
+  if (value === 'full') return '100%';
+  if (value === 'screen') return '100%';
+  if (value === 'auto') return 'auto';
+  if (value === 'fit-content') return 'auto'; // RN doesn't have fit-content, fallback to auto
+
+  // Check for fraction strings: '1/2' → '50%'
   const fractionMatch = FRACTION_RE.exec(value);
   if (fractionMatch) {
     const numerator = parseInt(fractionMatch[1]!, 10);
@@ -89,6 +95,7 @@ export function parseViewportValue(value: unknown): unknown {
   if (unit === 'vw') return (num / 100) * store.screen.width;
   if (unit === 'vh') return (num / 100) * store.screen.height;
   if (unit === 'rem') return num * store.inlineRem;
+  if (unit === 'em') return num * store.inlineRem;
 
   return value;
 }
@@ -154,13 +161,19 @@ export function resolveViewportUnits<T>(style: T): T {
  * @param screen - Current screen dimensions
  * @param inlineRem - Base pixel value for rem→px conversion (default 16)
  */
-function unitToPixels(num: number, unit: string | undefined, screen: ScreenInfo, inlineRem: number = 16): number {
+function unitToPixels(
+  num: number,
+  unit: string | undefined,
+  screen: ScreenInfo,
+  inlineRem: number = 16
+): number {
   switch (unit) {
     case 'vh':
       return (num / 100) * screen.height;
     case 'vw':
       return (num / 100) * screen.width;
     case 'rem':
+    case 'em':
       return num * inlineRem;
     case 'px':
     default:
@@ -174,7 +187,11 @@ function unitToPixels(num: number, unit: string | undefined, screen: ScreenInfo,
  */
 type Token = { type: 'number'; value: number } | { type: 'op'; value: string };
 
-function tokenize(expr: string, screen: ScreenInfo, inlineRem: number = 16): Token[] {
+function tokenize(
+  expr: string,
+  screen: ScreenInfo,
+  inlineRem: number = 16
+): Token[] {
   const tokens: Token[] = [];
   // Trim whitespace
   let input = expr.trim();
@@ -220,11 +237,16 @@ function tokenize(expr: string, screen: ScreenInfo, inlineRem: number = 16): Tok
     }
 
     // Try to parse a number (with optional unit)
-    const numMatch = input.slice(i).match(/^(-?\d+\.?\d*)\s*(px|vh|vw|rem)?/);
+    const numMatch = input
+      .slice(i)
+      .match(/^(-?\d+\.?\d*)\s*(px|vh|vw|rem|em)?/);
     if (numMatch) {
       const num = parseFloat(numMatch[1]!);
       const unit = numMatch[2];
-      tokens.push({ type: 'number', value: unitToPixels(num, unit, screen, inlineRem) });
+      tokens.push({
+        type: 'number',
+        value: unitToPixels(num, unit, screen, inlineRem),
+      });
       i += numMatch[0]!.length;
       continue;
     }
@@ -268,7 +290,10 @@ class ExprParser {
   private expression(): number {
     let left = this.term();
 
-    while (this.peek()?.type === 'op' && (this.peek()!.value === '+' || this.peek()!.value === '-')) {
+    while (
+      this.peek()?.type === 'op' &&
+      (this.peek()!.value === '+' || this.peek()!.value === '-')
+    ) {
       const op = this.consume().value;
       const right = this.term();
       left = op === '+' ? left + right : left - right;
@@ -280,7 +305,10 @@ class ExprParser {
   private term(): number {
     let left = this.factor();
 
-    while (this.peek()?.type === 'op' && (this.peek()!.value === '*' || this.peek()!.value === '/')) {
+    while (
+      this.peek()?.type === 'op' &&
+      (this.peek()!.value === '*' || this.peek()!.value === '/')
+    ) {
       const op = this.consume().value;
       const right = this.factor();
       left = op === '*' ? left * right : left / right;
@@ -356,7 +384,11 @@ export function calc(expression: string): number {
  * @param screen - Current screen dimensions
  * @param inlineRem - Base pixel value for rem→px conversion (default 16)
  */
-export function evaluateCalc(expression: string, screen: ScreenInfo, inlineRem: number = 16): number {
+export function evaluateCalc(
+  expression: string,
+  screen: ScreenInfo,
+  inlineRem: number = 16
+): number {
   const tokens = tokenize(expression, screen, inlineRem);
   const parser = new ExprParser(tokens);
   return parser.parse();

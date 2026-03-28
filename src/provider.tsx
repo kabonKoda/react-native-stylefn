@@ -131,7 +131,7 @@ function useHighContrast(): boolean {
   useEffect(() => {
     if (Platform.OS === 'ios') {
       // Not all RN versions expose isGrayscaleEnabled
-      const ai = AccessibilityInfo as Record<string, unknown>;
+      const ai = AccessibilityInfo as unknown as Record<string, unknown>;
       if (typeof ai['isGrayscaleEnabled'] === 'function') {
         (ai['isGrayscaleEnabled'] as () => Promise<boolean>)()
           .then(setHighContrast)

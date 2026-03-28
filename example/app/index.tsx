@@ -1270,6 +1270,7 @@ function UseLayoutDemo() {
               justifyContent: 'center' as const,
               paddingHorizontal: 8,
               marginBottom: t.theme.spacing[2],
+              boxShadow: t.theme.shadows[1],
             })}
           >
             <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
@@ -1284,7 +1285,7 @@ function UseLayoutDemo() {
               height: 32,
               backgroundColor:
                 width > 300 ? t.theme.colors.success : t.theme.colors.warning,
-              borderRadius: t.theme.borderRadius.sm,
+              borderRadius: t.theme.colors.warning,
               justifyContent: 'center' as const,
               paddingHorizontal: 8,
             })}
@@ -1313,6 +1314,7 @@ function AppContent() {
       })}
       contentContainerStyle={(t) => {
         return {
+          width: '100vw',
           padding: t.theme.spacing[4],
           paddingTop: t.insets.top + t.theme.spacing[4],
           paddingBottom: t.insets.bottom + t.theme.spacing[6],

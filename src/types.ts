@@ -109,9 +109,9 @@ export interface ThemeConfig {
   opacity: Record<string, number | string>;
   screens: Record<string, number>;
   colors: Record<string, string | Record<string, string>>;
-  shadows?: Record<string, string | object>;
+  shadows?: Record<string, string>;
   /** Tailwind-compatible alias for shadows */
-  boxShadow?: Record<string, string | object>;
+  boxShadow?: Record<string, string>;
   /** Border width tokens (e.g., { hairline: 0.5 }) */
   borderWidth?: Record<string, number | string>;
   extend?: Partial<Omit<ThemeConfig, 'extend'>>;
@@ -346,7 +346,7 @@ export interface StyleTokens {
       NonNullable<FontWeightValue>
     >;
     colors: KnownKeys<ThemeKeyRegistry['color'], string>;
-    shadows: KnownKeys<ThemeKeyRegistry['shadow'], object>;
+    shadows: KnownKeys<ThemeKeyRegistry['shadow'], string>;
     opacity: KnownKeys<ThemeKeyRegistry['opacity'], number>;
   };
 
@@ -494,17 +494,27 @@ export type StyleFnDimension =
   | `${number}/${number}`
   | `${number}vw`
   | `${number}vh`
-  | `${number}rem`;
+  | `${number}rem`
+  | `${number}em`
+  | 'full'
+  | 'screen'
+  | 'auto'
+  | 'fit-content';
 
 /**
  * Loosens a style type to also accept `StyleFnDimension` custom strings
- * for any property. Used in style function return types.
+ * and `boolean` token values for any property. Used in style function return types.
+ *
+ * The `boolean` addition allows token accessors such as `t.boldText`, `t.dark`,
+ * `t.platform.ios` etc. to be used directly as style property values inside
+ * style functions. The Babel plugin resolves these at runtime via
+ * `__resolveStyle()` before React Native sees them.
  *
  * Distributive over unions: `LooseStyle<ViewStyle | TextStyle>` becomes
  * `LooseStyle<ViewStyle> | LooseStyle<TextStyle>`.
  */
 export type LooseStyle<S> = S extends any
-  ? { [K in keyof S]?: S[K] | StyleFnDimension }
+  ? { [K in keyof S]?: S[K] | StyleFnDimension | boolean }
   : never;
 
 /**

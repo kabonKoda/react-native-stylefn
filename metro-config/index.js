@@ -205,8 +205,11 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     const configColorKeys = [...userColorKeys, ...extendColorKeys];
 
     // CSS variable color keys:
-    // 1. --color-* prefixed vars (backward compat, with prefix stripped)
-    // 2. ALL rawVars keys — covers shadcn/ui style vars like --primary, --destructive, etc.
+    // 1. --color-* prefixed vars (backward compat, with prefix stripped) → t.colors.*
+    // 2. rawVars keys that are NOT --color-* (e.g. --primary, --destructive from shadcn)
+    //    These are accessible via var(--primary) in config but also as t.colors.primary.
+    //    We must EXCLUDE keys that start with 'color-' because those are the un-stripped
+    //    duplicates of the --color-* vars already in cssColorKeysFromColorPrefix.
     const cssColorKeysFromColorPrefix = [
       ...Object.keys(parsedCss.light || {}),
       ...Object.keys(parsedCss.dark || {}),
@@ -214,7 +217,7 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     const cssColorKeysFromRawVars = [
       ...Object.keys((parsedCss.rawVars && parsedCss.rawVars.light) || {}),
       ...Object.keys((parsedCss.rawVars && parsedCss.rawVars.dark) || {}),
-    ];
+    ].filter((k) => !k.startsWith('color-')); // Exclude color-* duplicates
     const cssColorKeys = [
       ...cssColorKeysFromColorPrefix,
       ...cssColorKeysFromRawVars,
@@ -268,67 +271,83 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     dts.push('');
 
     // -------------------------------------------------------------------------
-    // Augment StyleSheetStatic so that StyleSheet.create accepts style functions
-    // and `t` is inferred as `StyleTokens` instead of `any`.
+    // Augment React Native's StyleSheet so that StyleSheet.create accepts
+    // style functions and `t` is inferred as `StyleTokens`.
     //
-    // We augment `StyleSheetStatic` (the interface) rather than the `StyleSheet`
-    // namespace because `StyleSheet.create` is a method on that interface.
-    // TypeScript will merge this overload with the existing RN signature.
+    // We provide MULTIPLE augmentation strategies to cover all RN versions:
+    // 1. StyleSheetStatic interface (classic RN < 0.76)
+    // 2. StyleSheet namespace with a standalone create function (RN 0.76+)
+    // 3. Direct re-export augmentation for generated types (RN 0.83+)
+    //
+    // TypeScript will merge compatible augmentations and ignore non-matching
+    // ones, so it's safe to include all of them.
     // -------------------------------------------------------------------------
+    const styleFnValueType = [
+      "    | import('react-native').ViewStyle",
+      "    | import('react-native').TextStyle",
+      "    | import('react-native').ImageStyle",
+      "    | ((tokens: import('react-native-stylefn').StyleTokens) =>",
+      "        import('react-native-stylefn').LooseStyle<",
+      "          import('react-native').ViewStyle |",
+      "          import('react-native').TextStyle |",
+      "          import('react-native').ImageStyle",
+      '        > | false | null | undefined)',
+    ].join('\n');
+
     dts.push("declare module 'react-native' {");
+    // Strategy 1: Classic StyleSheetStatic (RN < 0.76)
     dts.push('  interface StyleSheetStatic {');
     dts.push('    create<T extends {');
     dts.push('      [key: string]:');
-    dts.push("        | import('react-native').ViewStyle");
-    dts.push("        | import('react-native').TextStyle");
-    dts.push("        | import('react-native').ImageStyle");
-    dts.push(
-      "        | ((tokens: import('react-native-stylefn').StyleTokens) =>"
-    );
-    dts.push("            import('react-native-stylefn').LooseStyle<");
-    dts.push("              import('react-native').ViewStyle |");
-    dts.push("              import('react-native').TextStyle |");
-    dts.push("              import('react-native').ImageStyle");
-    dts.push('            > | false | null | undefined);');
+    dts.push(styleFnValueType + ';');
+    dts.push('    }>(styles: T): T;');
+    dts.push('  }');
+    dts.push('');
+    // Strategy 2: Namespace augmentation (RN 0.76+ where StyleSheet is a namespace)
+    dts.push('  namespace StyleSheet {');
+    dts.push('    function create<T extends {');
+    dts.push('      [key: string]:');
+    dts.push(styleFnValueType + ';');
     dts.push('    }>(styles: T): T;');
     dts.push('  }');
     dts.push('}');
     dts.push('');
 
-    // Write stylefn.d.ts into the library's installed location
-    // so users can reference it as: /// <reference types="react-native-stylefn/stylefn" />
+    // Write stylefn.d.ts to BOTH:
+    // 1. node_modules/react-native-stylefn/stylefn.d.ts — so that
+    //    `/// <reference types="./node_modules/react-native-stylefn/stylefn" />`
+    //    in stylefn-env.d.ts resolves correctly even when the package is a link:..
+    // 2. <projectRoot>/stylefn.d.ts — picked up by TypeScript via include: ["**/*.ts"]
+    //    and as a last-resort fallback when no reference directive is present.
+    const absoluteProjectRoot = path.resolve(projectRoot);
+
     let libDir;
     try {
       const pkgPath = require.resolve('react-native-stylefn/package.json', {
-        paths: [projectRoot],
+        paths: [absoluteProjectRoot],
       });
       libDir = path.dirname(pkgPath);
     } catch {
-      // Fallback: node_modules/react-native-stylefn/
+      // Fallback: create node_modules/react-native-stylefn/ if it doesn't exist
       libDir = path.resolve(
-        projectRoot,
+        absoluteProjectRoot,
         'node_modules',
         'react-native-stylefn'
       );
     }
 
-    if (fs.existsSync(libDir)) {
-      const dtsPath = path.join(libDir, 'stylefn.d.ts');
-      fs.writeFileSync(dtsPath, dts.join('\n'));
-      console.log(
-        `[react-native-stylefn] ✓ Generated type declarations at ${path.relative(
-          projectRoot,
-          dtsPath
-        )}`
-      );
-    } else {
-      // Last resort: write to project root
-      const dtsPath = path.join(projectRoot, 'stylefn.d.ts');
-      fs.writeFileSync(dtsPath, dts.join('\n'));
-      console.log(
-        `[react-native-stylefn] ✓ Generated type declarations at stylefn.d.ts`
-      );
-    }
+    // Always create libDir (harmless if it already exists) and write there
+    fs.mkdirSync(libDir, { recursive: true });
+    const libDtsPath = path.join(libDir, 'stylefn.d.ts');
+    fs.writeFileSync(libDtsPath, dts.join('\n'));
+
+    // Always also write to project root so TypeScript picks it up via include glob
+    const rootDtsPath = path.join(absoluteProjectRoot, 'stylefn.d.ts');
+    fs.writeFileSync(rootDtsPath, dts.join('\n'));
+
+    console.log(
+      `[react-native-stylefn] ✓ Generated type declarations → stylefn.d.ts`
+    );
   } catch (err) {
     console.warn(
       '[react-native-stylefn] Could not generate type declarations:',
