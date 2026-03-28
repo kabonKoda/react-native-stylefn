@@ -1263,7 +1263,7 @@ function UseLayoutDemo() {
           {/* Third-width child */}
           <View
             style={(t) => ({
-              width: width / 3,
+              width: '100vh',
               height: 32,
               backgroundColor: t.theme.colors.secondary,
               borderRadius: t.theme.borderRadius.sm,

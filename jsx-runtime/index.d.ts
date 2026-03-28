@@ -133,6 +133,7 @@ type _WithTokenFunctions<P> = {
       : K extends 'style' | `${string}Style` | `${string}style`
       ?
           | _StripCallable<P[K]>
+          | _LooseAllStyles
           | _StyleFnForStyle
           | ReadonlyArray<
               | _LooseAllStyles
