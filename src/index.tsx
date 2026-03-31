@@ -11,7 +11,11 @@ export { useStyleFn } from './hooks/useStyleFn';
 export { useTheme } from './hooks/useTheme';
 export { usePropsFn } from './hooks/usePropsFn';
 export type { TokenProp } from './hooks/usePropsFn';
-export { useLayout, LAYOUT_DEBOUNCE_MS } from './hooks/useLayout';
+export {
+  useLayout,
+  LAYOUT_DEBOUNCE_MS,
+  LAYOUT_FLUSH_INTERVAL_MS,
+} from './hooks/useLayout';
 export type { UseLayoutReturn } from './hooks/useLayout';
 export { useTokenInjection } from './hooks/useTokenInjection';
 
