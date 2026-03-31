@@ -1265,7 +1265,7 @@ function UseLayoutDemo() {
             style={(t) => ({
               width: '100vh',
               height: 32,
-              backgroundColor: t.theme.colors.secondary,
+              backgroundColor: t.theme.colors.white,
               borderRadius: t.theme.borderRadius.sm,
               justifyContent: 'center' as const,
               paddingHorizontal: 8,

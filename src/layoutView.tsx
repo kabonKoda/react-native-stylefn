@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback } from 'react';
 import { useSyncExternalStore } from 'react';
 import { getTokenStore, subscribeTokenStore } from './store';
-import type { ChildrenTokens, LayoutInfo } from './types';
+import { useLayout } from './hooks/useLayout';
+import type { ChildrenTokens } from './types';
 
 /**
  * Internal wrapper component injected by the Babel plugin when a JSX element
@@ -23,6 +24,13 @@ import type { ChildrenTokens, LayoutInfo } from './types';
  * handler that measures its dimensions, then calls `__childFn` with the full
  * token store augmented with `layout: { width, height }`.
  *
+ * ### Performance
+ * Layout tracking is delegated to `useLayout`, which:
+ * - Updates Reanimated shared values on **every** layout event (zero React
+ *   overhead) when `react-native-reanimated` is installed.
+ * - Debounces React state updates so a continuously-resizing view only causes
+ *   a **single re-render** per resize gesture, not one per frame.
+ *
  * - `layout.width` / `layout.height` start at `0` and update after the first
  *   layout pass (causing a re-render with real dimensions).
  * - The user's existing `onLayout` prop (if any) is preserved and called too.
@@ -31,6 +39,7 @@ import type { ChildrenTokens, LayoutInfo } from './types';
  * **This component is for internal use by the Babel plugin only.**
  * Users should NOT import or use `__LayoutView` directly.
  */
+
 /**
  * Internal implementation — named with an uppercase letter so React's
  * rules-of-hooks linter recognises it as a valid function component.
@@ -58,21 +67,26 @@ function LayoutViewWrapper({
   // uses _StableChildren to prevent cascading.
   useSyncExternalStore(subscribeTokenStore, getTokenStore, getTokenStore);
 
-  const [layout, setLayout] = useState<LayoutInfo>({ width: 0, height: 0 });
+  // Delegate layout tracking to useLayout.
+  // • When react-native-reanimated is installed: shared values update on every
+  //   event; React state is debounced → one re-render per resize gesture.
+  // • Without reanimated: React state is debounced → same low-re-render benefit.
+  const { width, height, onLayout: layoutOnLayout } = useLayout();
 
-  const handleLayout = (event: any) => {
-    const { width, height } = event.nativeEvent.layout;
-    setLayout((prev) => {
-      // Bail out if dimensions haven't changed — prevents unnecessary re-renders
-      if (prev.width === width && prev.height === height) return prev;
-      return { width, height };
-    });
-    // Preserve the user's own onLayout handler
-    userOnLayout?.(event);
-  };
+  // Compose the layout handler with the user's own onLayout prop (if any).
+  const handleLayout = useCallback(
+    (event: any) => {
+      layoutOnLayout(event);
+      userOnLayout?.(event);
+    },
+    [layoutOnLayout, userOnLayout]
+  );
 
   // Merge current layout into the global token store for this render
-  const tokens: ChildrenTokens = { ...getTokenStore(), layout };
+  const tokens: ChildrenTokens = {
+    ...getTokenStore(),
+    layout: { width, height },
+  };
 
   // Resolve the children function with layout-aware tokens
   const fnChildren =
