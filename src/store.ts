@@ -3,6 +3,7 @@ import { defaultTheme, defaultCSSVariables } from './config/defaults';
 import { createBreakpointQuery } from './tokens/breakpoint';
 import { defaultDevice } from './tokens/device';
 import { evaluateCalc } from './units';
+import { alpha } from './tokens/alpha';
 
 /**
  * Static fallback tokens — no native API calls at module init time.
@@ -60,6 +61,7 @@ const fallbackTokens: StyleTokens = {
   height: fallbackScreen.height,
   active: false,
   hovered: false,
+  alpha,
   custom: {} as CustomTokens & Record<string, unknown>,
 };
 

@@ -13,6 +13,7 @@ import { deriveOrientation } from './orientation';
 import { derivePlatform } from './platform';
 import { deriveDevice } from './device';
 import { evaluateCalc } from '../units';
+import { alpha } from './alpha';
 
 /**
  * Assembles the full StyleTokens object from all device/system state + config.
@@ -144,6 +145,7 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     // detects t.pressed / t.hovered in a style or prop function.
     active: false,
     hovered: false,
+    alpha,
     custom: getCustomTokens(),
   };
 }

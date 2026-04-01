@@ -100,6 +100,10 @@ export { create } from './create';
 // Unit helpers — pass '50vw' / '100vh' / '0.625rem' / '1/2' strings or use these functions
 export { vh, vw, rem, calc, fraction } from './units';
 
+// Color opacity helper — t.alpha(color, opacity)
+// Equivalent to Tailwind's /opacity modifier: bg-primary/50 → t.alpha(t.colors.primary, 0.5)
+export { alpha } from './tokens/alpha';
+
 // Style resolver (used by Babel plugin at compile time)
 export { __resolveStyle } from './resolve';
 

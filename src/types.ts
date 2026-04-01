@@ -393,6 +393,24 @@ export interface StyleTokens {
   highContrast: boolean;
 
   /**
+   * Apply an opacity value to any CSS color string and return an `#RRGGBBAA`
+   * hex string — the runtime equivalent of Tailwind's `/opacity` modifier.
+   *
+   * Accepts hex (`#RGB`, `#RRGGBB`, `#RRGGBBAA`), `rgb()`, `rgba()`,
+   * `hsl()`, and `hsla()` inputs. Opacity can be `0–1` or `0–100`
+   * (values > 1 are auto-divided by 100).
+   *
+   * @example
+   * ```tsx
+   * t.alpha(t.colors.primary, 0.1)   // primary at 10 % opacity
+   * t.alpha(t.colors.muted,   0.5)   // muted at 50 % opacity
+   * t.alpha('#000000',         0.8)  // black at 80 % opacity
+   * t.alpha('#ffffff',         50)   // white at 50 % opacity  (0-100 range)
+   * ```
+   */
+  alpha: (color: string, opacity: number) => string;
+
+  /**
    * Convert a viewport-width value (0–100) to pixels.
    * @example `t.vw(50)` → half the screen width in pixels
    */
