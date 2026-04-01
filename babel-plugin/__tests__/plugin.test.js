@@ -516,6 +516,125 @@ describeIfBabel('babel-plugin-react-native-stylefn — transforms', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // sanitizeJSXChildren — NativeWind / pre-transformed child compatibility
+  //
+  // Simulates a third-party Babel plugin (e.g. NativeWind) that runs BEFORE
+  // react-native-stylefn and transforms some JSX children from JSXElement
+  // nodes into raw CallExpression nodes.  Without sanitizeJSXChildren, Babel's
+  // own AST validator would throw:
+  //   "children[N] of JSXElement … got CallExpression"
+  // ---------------------------------------------------------------------------
+
+  describe('sanitizeJSXChildren — pre-transformed child compat', () => {
+    /**
+     * A minimal "pre-transform" plugin that replaces every direct JSXElement
+     * child of a container <View> with a CallExpression node — exactly what
+     * NativeWind does when it wraps styled components.
+     */
+    function makePreTransformPlugin(babelCore) {
+      const t = babelCore.types;
+      return {
+        visitor: {
+          JSXElement: {
+            exit(path) {
+              const opening = path.node.openingElement;
+              if (!t.isJSXIdentifier(opening.name)) return;
+              // Target the container View only (not nested elements)
+              if (opening.name.name !== 'View') return;
+
+              const newChildren = path.node.children.map((child) => {
+                if (t.isJSXElement(child)) {
+                  // Simulate NativeWind wrapping styled component call:
+                  //   <Text>Hi</Text>  →  styledText({...})
+                  return t.callExpression(t.identifier('styledText'), [child]);
+                }
+                return child;
+              });
+              path.node.children = newChildren;
+            },
+          },
+        },
+      };
+    }
+
+    /**
+     * Transforms code with the pre-transform plugin running FIRST (simulating
+     * NativeWind) and then the stylefn plugin.
+     */
+    function transformWithPrePlugin(code) {
+      const babel = require('@babel/core');
+      const prePlugin = ({ types }) => makePreTransformPlugin({ types });
+
+      return babel.transformSync(code, {
+        filename: '/project/src/Component.tsx',
+        plugins: [prePlugin, plugin],
+        presets: [['@babel/preset-react', { runtime: 'classic' }]],
+        configFile: false,
+        babelrc: false,
+      });
+    }
+
+    it('does not throw when __InteractiveView has pre-transformed CallExpression children', () => {
+      const code = `
+        function Comp() {
+          return (
+            <View style={(t) => ({ opacity: t.active ? 0.7 : 1 })}>
+              <Text>Hello</Text>
+            </View>
+          );
+        }
+      `;
+      expect(() => transformWithPrePlugin(code)).not.toThrow();
+    });
+
+    it('still wraps with __InteractiveView when children contain CallExpression nodes', () => {
+      const code = `
+        function Comp() {
+          return (
+            <View style={(t) => ({ opacity: t.active ? 0.7 : 1 })}>
+              <Text>Hello</Text>
+            </View>
+          );
+        }
+      `;
+      const result = transformWithPrePlugin(code);
+      expect(result).not.toBeNull();
+      expect(result.code).toContain('__InteractiveView');
+      expect(result.code).toContain('__needsActive');
+    });
+
+    it('does not throw when __LayoutView has pre-transformed CallExpression sibling children', () => {
+      const code = `
+        function Comp() {
+          return (
+            <View>
+              {({ layout }) => <Inner width={layout.width} />}
+              <Text>Static sibling</Text>
+            </View>
+          );
+        }
+      `;
+      expect(() => transformWithPrePlugin(code)).not.toThrow();
+    });
+
+    it('still produces __LayoutView when sibling children contain CallExpression nodes', () => {
+      const code = `
+        function Comp() {
+          return (
+            <View>
+              {({ layout }) => <Inner width={layout.width} />}
+              <Text>Static sibling</Text>
+            </View>
+          );
+        }
+      `;
+      const result = transformWithPrePlugin(code);
+      expect(result).not.toBeNull();
+      expect(result.code).toContain('__LayoutView');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Auto-import injection
   // ---------------------------------------------------------------------------
 

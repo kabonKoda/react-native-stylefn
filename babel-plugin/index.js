@@ -55,6 +55,37 @@ function isCallbackProp(name) {
 }
 
 /**
+ * Wraps any non-JSX child nodes (e.g. CallExpression nodes produced by a
+ * third-party Babel plugin such as NativeWind) in a JSXExpressionContainer
+ * so that `t.jsxElement(open, close, children)` receives only valid JSX
+ * child node types and Babel's AST validator does not throw.
+ *
+ * Valid JSX child types:  JSXText | JSXExpressionContainer | JSXSpreadChild
+ *                        | JSXElement | JSXFragment
+ *
+ * @param {import('@babel/types')} bTypes
+ * @param {import('@babel/types').JSXElement['children']} children
+ * @returns {import('@babel/types').JSXElement['children']}
+ */
+function sanitizeJSXChildren(bTypes, children) {
+  return children.map((child) => {
+    if (
+      bTypes.isJSXText(child) ||
+      bTypes.isJSXExpressionContainer(child) ||
+      bTypes.isJSXSpreadChild(child) ||
+      bTypes.isJSXElement(child) ||
+      bTypes.isJSXFragment(child)
+    ) {
+      return child;
+    }
+    // Another plugin (e.g. NativeWind) already transformed this child from a
+    // JSXElement into a CallExpression or other non-JSX expression.  Wrap it
+    // in a JSXExpressionContainer so the AST stays valid.
+    return bTypes.jsxExpressionContainer(child);
+  });
+}
+
+/**
  * Converts a JSXIdentifier or JSXMemberExpression (element name in JSX) to
  * a regular Babel expression node that can be used as a prop value.
  *
@@ -718,7 +749,7 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
                       false
                     ),
                     t.jsxClosingElement(t.jsxIdentifier(INTERACTIVE_VIEW_FN)),
-                    children,
+                    sanitizeJSXChildren(t, children),
                     false
                   );
 
@@ -796,7 +827,7 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
                 false
               ),
               t.jsxClosingElement(t.jsxIdentifier(LAYOUT_VIEW_FN)),
-              otherChildren,
+              sanitizeJSXChildren(t, otherChildren),
               false
             );
           }
