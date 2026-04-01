@@ -33,12 +33,6 @@ type _StyleFnTokens = import('react-native-stylefn').StyleTokens;
 // component in addition to all StyleTokens fields.
 type _ChildrenTokens = import('react-native-stylefn').ChildrenTokens;
 
-// Combine all React Native style types into a single intersection for
-// comprehensive autocomplete (padding from ViewStyle, fontSize from TextStyle, etc.)
-type _AllRNStyles = import('react-native').ViewStyle &
-  import('react-native').TextStyle &
-  import('react-native').ImageStyle;
-
 // Registered style type (e.g. StyleSheet.absoluteFill, StyleSheet.create() results)
 type _RegisteredStyle = import('react-native').RegisteredStyle<
   | import('react-native').ViewStyle
@@ -59,12 +53,34 @@ type _StyleFnDimension =
   | 'auto'
   | 'fit-content';
 
-// Loosened style type: all RN style properties are optional and also accept
-// custom dimension strings and boolean token values (e.g. t.boldText, t.dark,
-// t.platform.ios). This gives full autocomplete for style properties while
-// allowing stylefn-specific string values and boolean token accessors.
+// All property keys from all three style types (intersection gives us the
+// complete set of keys across ViewStyle, TextStyle, and ImageStyle).
+type _AllStyleKeys = keyof (import('react-native').ViewStyle &
+  import('react-native').TextStyle &
+  import('react-native').ImageStyle);
+
+// Helper: extract a property's type from a style interface, or `never` if
+// the key doesn't exist in that interface.
+type _StylePropOf<S, K> = K extends keyof S ? S[K] : never;
+
+// Loosened style type: for each property key we take the **union** of that
+// property's type across ViewStyle, TextStyle, and ImageStyle — NOT the
+// intersection. A plain intersection (`ViewStyle & TextStyle & ImageStyle`)
+// can narrow colour properties (e.g. `ColorValue` → `string`) when the same
+// key appears in multiple interfaces with subtly different types; the union
+// approach preserves every constituent (including `OpaqueColorValue` /
+// `NativeColorValue`).
+//
+// In addition, every property also accepts custom dimension strings
+// (`_StyleFnDimension`) and `boolean` token values (e.g. `t.boldText`,
+// `t.dark`, `t.platform.ios`).
 type _LooseAllStyles = {
-  [K in keyof _AllRNStyles]?: _AllRNStyles[K] | _StyleFnDimension | boolean;
+  [K in _AllStyleKeys]?:
+    | _StylePropOf<import('react-native').ViewStyle, K>
+    | _StylePropOf<import('react-native').TextStyle, K>
+    | _StylePropOf<import('react-native').ImageStyle, K>
+    | _StyleFnDimension
+    | boolean;
 };
 
 // A style function with a properly typed return — provides autocomplete for
