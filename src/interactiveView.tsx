@@ -64,9 +64,7 @@ interface GestureHoverInstance {
 let _rngh: GestureHandlerModule | null = null;
 
 try {
-  // react-native-gesture-handler is optional — require is intentional here
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = require('react-native-gesture-handler') as GestureHandlerModule;
+  const mod = require('react-native-gesture-handler') as GestureHandlerModule; // eslint-disable-line @typescript-eslint/no-var-requires
   if (mod && mod.GestureDetector && mod.Gesture) {
     _rngh = mod;
   }
