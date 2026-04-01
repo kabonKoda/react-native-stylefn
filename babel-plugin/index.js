@@ -5,6 +5,7 @@ const RESOLVE_FN = '__resolveStyle';
 const RESOLVE_PROP_FN = '__resolveProp';
 const RESOLVE_CHILDREN_FN = '__resolveChildren';
 const LAYOUT_VIEW_FN = '__LayoutView';
+const INTERACTIVE_VIEW_FN = '__InteractiveView';
 const SUBSCRIBE_FN = '__subscribeStyleFn';
 const INJECTED_COMMENT = '__stylefn_injected__';
 const VIEWPORT_UNIT_RE = /^-?\d+\.?\d*(vh|vw)$/;
@@ -72,6 +73,128 @@ function jsxNameToExpression(t, name) {
   }
   // Fallback — should not happen in valid JSX
   return t.identifier(name.name || 'View');
+}
+
+// =============================================================================
+// Interaction detection helpers
+//
+// These functions statically analyse a style/prop function's AST to detect
+// whether it accesses t.pressed or t.hovered (where t is the first parameter).
+// This drives the decision to wrap the element with __InteractiveView.
+// =============================================================================
+
+/**
+ * Walks the body of a single arrow/function expression to detect whether
+ * the first parameter (token object) has `.active` or `.hovered` accessed.
+ *
+ * Handles two common parameter shapes:
+ *   (t) => ...           → looks for `t.active` / `t.hovered` in the body
+ *   ({ active }) => ...  → checks whether the destructuring pattern includes
+ *                          `active` or `hovered`
+ *
+ * Does NOT descend into nested function bodies (callbacks inside the style fn).
+ *
+ * @param {import('@babel/types').Function} fnNode  The function AST node.
+ * @param {import('@babel/types')}           bTypes  Babel types helper.
+ * @returns {{ active: boolean, hovered: boolean }}
+ */
+function detectInteractionUsage(fnNode, bTypes) {
+  const param = fnNode.params && fnNode.params[0];
+  if (!param) return { active: false, hovered: false };
+
+  let hasActive = false;
+  let hasHovered = false;
+
+  // ── Identifier parameter: (t) => t.active ──────────────────────────────────
+  if (bTypes.isIdentifier(param)) {
+    const paramName = param.name;
+
+    function traverseBody(node, isNested) {
+      if (!node || typeof node !== 'object') return;
+      if (typeof node.type !== 'string') return;
+      // Don't recurse into nested function bodies — only scan the outermost fn
+      if (isNested && bTypes.isFunction(node)) return;
+
+      if (
+        bTypes.isMemberExpression(node) &&
+        !node.computed &&
+        bTypes.isIdentifier(node.object, { name: paramName })
+      ) {
+        if (bTypes.isIdentifier(node.property, { name: 'active' }))
+          hasActive = true;
+        if (bTypes.isIdentifier(node.property, { name: 'hovered' }))
+          hasHovered = true;
+      }
+
+      // Recurse into child nodes
+      for (const key of Object.keys(node)) {
+        if (
+          key === 'type' ||
+          key === 'start' ||
+          key === 'end' ||
+          key === 'loc' ||
+          key === 'extra' ||
+          key === 'comments' ||
+          key === 'leadingComments' ||
+          key === 'trailingComments' ||
+          key === 'innerComments'
+        )
+          continue;
+        const child = node[key];
+        if (Array.isArray(child)) {
+          child.forEach((c) => traverseBody(c, true));
+        } else if (child && typeof child === 'object' && child.type) {
+          traverseBody(child, true);
+        }
+      }
+    }
+
+    traverseBody(fnNode.body, false);
+
+    // ── Destructured parameter: ({ active, colors }) => ──────────────────────
+  } else if (bTypes.isObjectPattern(param)) {
+    for (const prop of param.properties || []) {
+      if (bTypes.isObjectProperty(prop) && bTypes.isIdentifier(prop.key)) {
+        if (prop.key.name === 'active') hasActive = true;
+        if (prop.key.name === 'hovered') hasHovered = true;
+      }
+    }
+  }
+
+  return { active: hasActive, hovered: hasHovered };
+}
+
+/**
+ * Checks whether an expression (a function or an array of values) accesses
+ * `t.active` or `t.hovered`.  Arrays are inspected element-by-element so
+ * `style={[(t) => t.active ? {opacity: 0.7} : {opacity: 1}, styles.base]}`
+ * is correctly flagged as interactive.
+ *
+ * @param {import('@babel/types').Expression} expr
+ * @param {import('@babel/types')} bTypes
+ * @returns {{ active: boolean, hovered: boolean }}
+ */
+function detectInteractionUsageInExpr(expr, bTypes) {
+  if (
+    bTypes.isArrowFunctionExpression(expr) ||
+    bTypes.isFunctionExpression(expr)
+  ) {
+    return detectInteractionUsage(expr, bTypes);
+  }
+
+  if (bTypes.isArrayExpression(expr)) {
+    let active = false;
+    let hovered = false;
+    for (const elem of expr.elements || []) {
+      if (!elem) continue;
+      const result = detectInteractionUsageInExpr(elem, bTypes);
+      active = active || result.active;
+      hovered = hovered || result.hovered;
+    }
+    return { active, hovered };
+  }
+
+  return { active: false, hovered: false };
 }
 
 module.exports = function styleFnBabelPlugin({ types: t }) {
@@ -251,11 +374,89 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
         const expr = value.expression;
         if (t.isJSXEmptyExpression(expr)) return;
 
-        // Skip internal __LayoutView props — these are injected by the plugin
-        // itself and must never be wrapped with __resolveProp / __resolveChildren.
+        // Skip internal __LayoutView / __InteractiveView props — these are
+        // injected by the plugin itself and must never be re-processed.
         if (attrName.startsWith('__')) return;
 
         const isStyleProp = attrName === 'style' || attrName.endsWith('Style');
+
+        // =====================================================================
+        // INTERACTION DETECTION — t.pressed / t.hovered
+        //
+        // Before doing any normal processing, check whether this attribute's
+        // function body references t.pressed or t.hovered.  If it does:
+        //   1. Mark the parent JSXElement for __InteractiveView transformation.
+        //   2. Store the raw expression so JSXElement.exit can use it.
+        //   3. Return early — the attribute is intentionally left as a raw
+        //      (un-resolved) function; JSXElement.exit will remove it from
+        //      the element and re-emit it as __styleFn / __propFns.
+        // =====================================================================
+        const shouldCheckInteraction = isStyleProp || !isCallbackProp(attrName);
+
+        if (
+          shouldCheckInteraction &&
+          (t.isArrowFunctionExpression(expr) ||
+            t.isFunctionExpression(expr) ||
+            t.isArrayExpression(expr))
+        ) {
+          const usage = detectInteractionUsageInExpr(expr, t);
+
+          if (usage.active || usage.hovered) {
+            const jsxElementPath = path.findParent((p) => p.isJSXElement());
+            if (jsxElementPath) {
+              // Bail out if this element also has function-children (those
+              // would normally be transformed to __LayoutView).  The two
+              // wrapper patterns cannot be combined in a single pass, so we
+              // fall back to the non-interactive path for this element.
+              const children = jsxElementPath.node.children;
+              const hasFnChild = children.some(
+                (child) =>
+                  t.isJSXExpressionContainer(child) &&
+                  (t.isArrowFunctionExpression(child.expression) ||
+                    t.isFunctionExpression(child.expression))
+              );
+              if (hasFnChild) {
+                // Fall through to normal processing below
+              } else {
+                // ── Mark the parent element ───────────────────────────────
+                if (!state.__interactiveElements) {
+                  state.__interactiveElements = new Map();
+                }
+
+                const elementNode = jsxElementPath.node;
+                if (!state.__interactiveElements.has(elementNode)) {
+                  state.__interactiveElements.set(elementNode, {
+                    active: false,
+                    hovered: false,
+                    // The raw style function (only for attrName === 'style')
+                    styleFn: null,
+                    // Raw functions for all other interactive props
+                    propFns: {},
+                    // Names of attributes captured here (to filter out later)
+                    capturedAttrNames: new Set(),
+                  });
+                }
+
+                const info = state.__interactiveElements.get(elementNode);
+                info.active = info.active || usage.active;
+                info.hovered = info.hovered || usage.hovered;
+
+                if (isStyleProp && attrName === 'style') {
+                  info.styleFn = expr;
+                } else {
+                  // contentContainerStyle, accessibilityState, etc.
+                  info.propFns[attrName] = expr;
+                }
+                info.capturedAttrNames.add(attrName);
+
+                // Leave the attribute as-is in the AST (not removed here).
+                // JSXElement.exit will filter it out by capturedAttrNames and
+                // move it to __styleFn / __propFns on __InteractiveView.
+                return;
+              }
+            }
+          }
+        }
 
         // =====================================================================
         // Style props: wrap with __resolveStyle (existing behavior)
@@ -394,25 +595,144 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
       },
 
       // =======================================================================
-      // JSXElement with function children → transform parent to __LayoutView
+      // JSXElement exit — two transforms handled here:
       //
-      // Detects:
-      //   <View style={...}>{(t) => <Child style={{ width: t.layout.width }} />}</View>
+      // 1. __InteractiveView transform (NEW)
+      //    When the element has style/prop functions that reference t.pressed
+      //    or t.hovered (detected above in JSXAttribute), replace it with:
+      //      <__InteractiveView __type={Original} __styleFn={fn} __needsPressed />
       //
-      // Transforms to (after all attribute/children visitors have run):
-      //   <__LayoutView __type={View} __childFn={(t) => <Child ... />} style={__resolveStyle(...)} />
+      // 2. __LayoutView transform (existing)
+      //    When the element has function children, replace it with:
+      //      <__LayoutView __type={Original} __childFn={fn} ...attrs />
       //
-      // This gives the children function access to the parent component's
-      // real measured layout dimensions via t.layout.width / t.layout.height.
-      //
-      // The exit hook fires AFTER all children/attributes have been processed,
-      // so style props are already wrapped with __resolveStyle when we carry
-      // them over to __LayoutView.
+      // __InteractiveView runs first.  If an element needs BOTH (interactive
+      // style + function children), the interactive transform is skipped
+      // (see the bail-out in JSXAttribute above) and only __LayoutView applies.
       // =======================================================================
       JSXElement: {
         exit(path, state) {
           const filename = state.filename || '';
           if (shouldSkip(filename)) return;
+
+          const openingElement = path.node.openingElement;
+          const elementName = openingElement.name;
+
+          // Guard: never re-process already-wrapped elements (avoids infinite
+          // re-traversal that path.replaceWith() triggers in an exit hook).
+          if (t.isJSXIdentifier(elementName)) {
+            if (
+              elementName.name === LAYOUT_VIEW_FN ||
+              elementName.name === INTERACTIVE_VIEW_FN
+            ) {
+              return;
+            }
+          }
+
+          // =================================================================
+          // 1. __InteractiveView transform
+          // =================================================================
+          if (
+            state.__interactiveElements &&
+            state.__interactiveElements.has(path.node)
+          ) {
+            const info = state.__interactiveElements.get(path.node);
+
+            // Build the leading __InteractiveView-specific attributes
+            const interactiveAttrs = [
+              // __type={OriginalComponent}
+              t.jsxAttribute(
+                t.jsxIdentifier('__type'),
+                t.jsxExpressionContainer(jsxNameToExpression(t, elementName))
+              ),
+            ];
+
+            // __needsActive  (boolean attribute — no value)
+            if (info.active) {
+              interactiveAttrs.push(
+                t.jsxAttribute(t.jsxIdentifier('__needsActive'))
+              );
+            }
+
+            // __needsHovered
+            if (info.hovered) {
+              interactiveAttrs.push(
+                t.jsxAttribute(t.jsxIdentifier('__needsHovered'))
+              );
+            }
+
+            // __styleFn={rawStyleFn}  — only for the main `style` attribute
+            if (info.styleFn !== null) {
+              interactiveAttrs.push(
+                t.jsxAttribute(
+                  t.jsxIdentifier('__styleFn'),
+                  t.jsxExpressionContainer(info.styleFn)
+                )
+              );
+            }
+
+            // __propFns={{ attrName: rawFn, ... }}  — all other interactive props
+            if (Object.keys(info.propFns).length > 0) {
+              const propFnsObj = t.objectExpression(
+                Object.entries(info.propFns).map(([key, fn]) =>
+                  t.objectProperty(t.identifier(key), fn)
+                )
+              );
+              interactiveAttrs.push(
+                t.jsxAttribute(
+                  t.jsxIdentifier('__propFns'),
+                  t.jsxExpressionContainer(propFnsObj)
+                )
+              );
+            }
+
+            // Remaining (non-interactive, already-processed) attributes.
+            // The captured interactive attributes are excluded here because
+            // they were intentionally left as raw expressions in the AST and
+            // are now re-emitted via __styleFn / __propFns above.
+            const remainingAttrs = openingElement.attributes.filter((attr) => {
+              if (!t.isJSXAttribute(attr) || !t.isJSXIdentifier(attr.name))
+                return true;
+              return !info.capturedAttrNames.has(attr.name.name);
+            });
+
+            const allAttrs = [...interactiveAttrs, ...remainingAttrs];
+            const children = path.node.children;
+
+            const newElement =
+              children.length === 0
+                ? t.jsxElement(
+                    t.jsxOpeningElement(
+                      t.jsxIdentifier(INTERACTIVE_VIEW_FN),
+                      allAttrs,
+                      true // self-closing
+                    ),
+                    null,
+                    [],
+                    true
+                  )
+                : t.jsxElement(
+                    t.jsxOpeningElement(
+                      t.jsxIdentifier(INTERACTIVE_VIEW_FN),
+                      allAttrs,
+                      false
+                    ),
+                    t.jsxClosingElement(t.jsxIdentifier(INTERACTIVE_VIEW_FN)),
+                    children,
+                    false
+                  );
+
+            path.replaceWith(newElement);
+
+            const programPath =
+              state.__programPath || path.findParent((p) => p.isProgram());
+            ensureImport(programPath, state, INTERACTIVE_VIEW_FN);
+            return; // Done — don't fall through to __LayoutView check
+          }
+
+          // =================================================================
+          // 2. __LayoutView transform (existing behavior — unchanged)
+          // =================================================================
 
           // Find the first direct child that is a raw arrow/function expression.
           // (These were intentionally NOT wrapped by JSXExpressionContainer
@@ -428,17 +748,6 @@ module.exports = function styleFnBabelPlugin({ types: t }) {
           if (fnChildIndex === -1) return;
 
           const originalFn = children[fnChildIndex].expression;
-
-          const openingElement = path.node.openingElement;
-          const elementName = openingElement.name;
-
-          // Don't transform __LayoutView itself (avoids infinite recursion
-          // after path.replaceWith triggers re-traversal).
-          if (
-            t.isJSXIdentifier(elementName) &&
-            elementName.name === LAYOUT_VIEW_FN
-          )
-            return;
 
           // Convert the JSX element name (JSXIdentifier / JSXMemberExpression)
           // to a regular expression so it can be passed as a prop value.

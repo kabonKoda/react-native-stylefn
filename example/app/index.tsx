@@ -20,7 +20,7 @@ import {
   useStyleFn,
   useTheme,
   usePropsFn,
-  useLayout,
+  useLayoutFn,
 } from 'react-native-stylefn';
 
 // =============================================================================
@@ -1175,11 +1175,15 @@ function ChildrenFunctionDemo() {
 }
 
 // =============================================================================
-// Example: useLayout Hook (Component Dimensions)
+// Example: useLayoutFn Hook (observe a component's dimensions from outside)
 // =============================================================================
 
 function UseLayoutDemo() {
-  const { ref, width, height, onLayout, measured } = useLayout();
+  // useLayoutFn('layoutDemo') observes the dimensions of the View below
+  // that has id="layoutDemo".  This component re-renders whenever that
+  // view is measured / resized — no ref or onLayout wiring needed.
+  const { width: externalWidth, height: externalHeight } =
+    useLayoutFn('layoutDemo');
 
   return (
     <View
@@ -1195,7 +1199,7 @@ function UseLayoutDemo() {
           marginBottom: t.theme.spacing[2],
         })}
       >
-        useLayout Hook ✓
+        useLayoutFn Hook ✓
       </Text>
 
       <View
@@ -1214,15 +1218,38 @@ function UseLayoutDemo() {
             marginBottom: t.theme.spacing[3],
           })}
         >
-          useLayout() measures a component's own width & height. The children
-          below use the parent's measured dimensions to size themselves. Rotate
+          Give a component an <Text style={{ fontWeight: '700' }}>id</Text> and
+          use function children to access its measured dimensions. Observe from
+          anywhere with{' '}
+          <Text style={{ fontWeight: '700' }}>useLayoutFn(id)</Text>. Rotate
           your device to see it update!
         </Text>
 
-        {/* The measured container */}
+        {/* Observer badge — powered by useLayoutFn('layoutDemo') */}
         <View
-          ref={ref}
-          onLayout={onLayout}
+          style={(t) => ({
+            backgroundColor: t.dark ? '#0f172a' : '#e0f2fe',
+            borderRadius: t.theme.borderRadius.md,
+            padding: t.theme.spacing[2],
+            marginBottom: t.theme.spacing[3],
+          })}
+        >
+          <Text
+            style={(t) => ({
+              fontSize: t.theme.fontSize.xs,
+              color: t.dark ? '#7dd3fc' : '#0369a1',
+              fontWeight: t.theme.fontWeight.semibold,
+            })}
+          >
+            👁 useLayoutFn observer: {Math.round(externalWidth)}×
+            {Math.round(externalHeight)}
+            {externalWidth === 0 ? ' (waiting…)' : ''}
+          </Text>
+        </View>
+
+        {/* The measured container — id registers it in the registry */}
+        <View
+          id="layoutDemo"
           style={(t) => ({
             backgroundColor: t.dark ? '#1e293b' : '#f1f5f9',
             borderRadius: t.theme.borderRadius.md,
@@ -1230,71 +1257,63 @@ function UseLayoutDemo() {
             minHeight: 120,
           })}
         >
-          {/* Children using parent's measured width/height */}
-          <Text
-            style={(t) => ({
-              fontSize: t.theme.fontSize.sm,
-              fontWeight: t.theme.fontWeight.semibold,
-              color: t.colors.text,
-              marginBottom: t.theme.spacing[2],
-            })}
-          >
-            Container: {Math.round(width)}×{Math.round(height)}
-            {!measured ? ' (measuring...)' : ''}
-          </Text>
+          {/* Function children receive layout dimensions automatically */}
+          {({ layout: { width, height } }) => (
+            <>
+              <Text
+                style={(t) => ({
+                  fontSize: t.theme.fontSize.sm,
+                  fontWeight: t.theme.fontWeight.semibold,
+                  color: t.colors.text,
+                  marginBottom: t.theme.spacing[2],
+                })}
+              >
+                Container: {Math.round(width)}×{Math.round(height)}
+                {width === 0 ? ' (measuring...)' : ''}
+              </Text>
 
-          {/* Half-width child */}
-          <View
-            style={(t) => ({
-              width: width / 2,
-              height: 32,
-              backgroundColor: t.theme.colors.primary,
-              borderRadius: t.theme.borderRadius.sm,
-              justifyContent: 'center' as const,
-              paddingHorizontal: 8,
-              marginBottom: t.theme.spacing[2],
-            })}
-          >
-            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
-              50% width ({Math.round(width / 2)}px)
-            </Text>
-          </View>
+              {/* Half-width child */}
+              <View
+                style={(t) => ({
+                  width: width / 2,
+                  height: 32,
+                  backgroundColor: t.theme.colors.primary,
+                  borderRadius: t.theme.borderRadius.sm,
+                  justifyContent: 'center' as const,
+                  paddingHorizontal: 8,
+                  marginBottom: t.theme.spacing[2],
+                })}
+              >
+                <Text
+                  style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}
+                >
+                  50% width ({Math.round(width / 2)}px)
+                </Text>
+              </View>
 
-          {/* Third-width child */}
-          <View
-            style={(t) => ({
-              width: '100vh',
-              height: 32,
-              backgroundColor: t.theme.colors.white,
-              borderRadius: t.theme.borderRadius.sm,
-              justifyContent: 'center' as const,
-              paddingHorizontal: 8,
-              marginBottom: t.theme.spacing[2],
-              boxShadow: t.theme.shadows[1],
-            })}
-          >
-            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
-              33% ({Math.round(width / 3)}px)
-            </Text>
-          </View>
-
-          {/* Responsive — changes color based on measured width */}
-          <View
-            style={(t) => ({
-              width: width * 0.75,
-              height: 32,
-              backgroundColor:
-                width > 300 ? t.theme.colors.success : t.theme.colors.warning,
-              borderRadius: t.theme.colors.warning,
-              justifyContent: 'center' as const,
-              paddingHorizontal: 8,
-            })}
-          >
-            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
-              75% — {width > 300 ? 'wide ✓' : 'narrow'} (
-              {Math.round(width * 0.75)}px)
-            </Text>
-          </View>
+              {/* 75%-width child — changes color based on measured width */}
+              <View
+                style={(t) => ({
+                  width: width * 0.75,
+                  height: 32,
+                  backgroundColor:
+                    width > 300
+                      ? t.theme.colors.primary
+                      : t.theme.colors.secondary,
+                  borderRadius: t.theme.borderRadius.sm,
+                  justifyContent: 'center' as const,
+                  paddingHorizontal: 8,
+                })}
+              >
+                <Text
+                  style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}
+                >
+                  75% — {width > 300 ? 'wide ✓' : 'narrow'} (
+                  {Math.round(width * 0.75)}px)
+                </Text>
+              </View>
+            </>
+          )}
         </View>
       </View>
     </View>

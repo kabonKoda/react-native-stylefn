@@ -58,6 +58,8 @@ const fallbackTokens: StyleTokens = {
   inlineRem: DEFAULT_INLINE_REM,
   width: fallbackScreen.width,
   height: fallbackScreen.height,
+  active: false,
+  hovered: false,
   custom: {} as CustomTokens & Record<string, unknown>,
 };
 

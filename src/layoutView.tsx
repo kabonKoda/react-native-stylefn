@@ -1,8 +1,13 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useSyncExternalStore } from 'react';
 import { getTokenStore, subscribeTokenStore } from './store';
 import { useLayout } from './hooks/useLayout';
 import type { ChildrenTokens } from './types';
+import {
+  registerComponent,
+  unregisterComponent,
+  updateComponentState,
+} from './componentRegistry';
 
 /**
  * Internal wrapper component injected by the Babel plugin when a JSX element
@@ -49,6 +54,7 @@ function LayoutViewWrapper({
   __type: Component,
   __childFn,
   onLayout: userOnLayout,
+  id,
   children,
   ...props
 }: {
@@ -58,6 +64,22 @@ function LayoutViewWrapper({
   __childFn?: ((tokens: ChildrenTokens) => React.ReactNode) | React.ReactNode;
   /** User's own onLayout handler (preserved and called after layout update) */
   onLayout?: (event: any) => void;
+  /**
+   * Optional string identifier that registers this component in the
+   * per-component state registry.  Pass the same string to
+   * `useLayoutFn(id)` or `useStyleFn(id)` from anywhere in the tree to
+   * observe this component's measured `layout` dimensions.
+   *
+   * ```tsx
+   * <View id="heroCard">
+   *   {({ layout }) => <View style={{ width: layout.width / 2 }} />}
+   * </View>
+   *
+   * // From a sibling or parent:
+   * const { width, height } = useLayoutFn('heroCard');
+   * ```
+   */
+  id?: string;
   /** Any remaining static children (non-function siblings of the child fn) */
   children?: React.ReactNode;
   [key: string]: any;
@@ -72,6 +94,23 @@ function LayoutViewWrapper({
   //   event; React state is debounced → one re-render per resize gesture.
   // • Without reanimated: React state is debounced → same low-re-render benefit.
   const { width, height, onLayout: layoutOnLayout } = useLayout();
+
+  // ── Per-component state registry ───────────────────────────────────────────
+  // Register on mount, unregister on unmount.  Safe when `id` is undefined.
+  useEffect(() => {
+    if (!id) return;
+    registerComponent(id);
+    return () => {
+      unregisterComponent(id);
+    };
+  }, [id]);
+
+  // Sync live layout dimensions into the registry so external observers
+  // (useLayoutFn / useStyleFn) always see the current values.
+  useEffect(() => {
+    if (!id) return;
+    updateComponentState(id, { layout: { width, height } });
+  }, [id, width, height]);
 
   // Compose the layout handler with the user's own onLayout prop (if any).
   const handleLayout = useCallback(
@@ -103,7 +142,8 @@ function LayoutViewWrapper({
 
   return React.createElement(
     Component,
-    { ...props, onLayout: handleLayout },
+    // Forward id so the native view / HTML element receives it too
+    { ...props, ...(id !== undefined ? { id } : {}), onLayout: handleLayout },
     finalChildren
   );
 }

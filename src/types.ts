@@ -448,6 +448,58 @@ export interface StyleTokens {
   height: number;
 
   /**
+   * Whether the component is currently being actively touched / pressed.
+   *
+   * When `react-native-gesture-handler` is installed and the component lives
+   * inside a `GestureHandlerRootView`, this is driven by a
+   * `Gesture.Tap().runOnJS(true)` gesture (works on iOS, Android, and Web).
+   *
+   * Otherwise it falls back to `onTouchStart` / `onTouchEnd` / `onTouchCancel`
+   * event handlers on the wrapped component.
+   *
+   * The Babel plugin detects `t.active` in a style or prop function and
+   * automatically wraps the element with `__InteractiveView`, injecting the
+   * appropriate gesture / touch handlers — no imports, hooks, or Pressable
+   * needed.
+   *
+   * Defaults to `false` in the global token store. Only `true` inside a
+   * component wrapped by `__InteractiveView` while the user is actively
+   * touching / pressing.
+   *
+   * @example
+   * ```tsx
+   * <View style={(t) => ({
+   *   backgroundColor: t.active ? t.colors.accent : t.colors.surface,
+   *   opacity: t.active ? 0.7 : 1,
+   * })} />
+   *
+   * // Works on View, Text, Image — any component:
+   * <Text style={(t) => ({ color: t.active ? '#fff' : t.colors.text })} />
+   * ```
+   */
+  active: boolean;
+
+  /**
+   * Whether the component is currently being hovered by a pointer (web only).
+   *
+   * Automatically set to `true` between `onMouseEnter` and `onMouseLeave`
+   * events. Injected by the Babel plugin when a style function references
+   * `t.hovered`.
+   *
+   * Defaults to `false` in the global token store. Only `true` inside a
+   * component wrapped by `__InteractiveView` on web.
+   *
+   * @example
+   * ```tsx
+   * <View style={(t) => ({
+   *   backgroundColor: t.hovered ? t.colors.accent : t.colors.surface,
+   *   transform: [{ scale: t.hovered ? 1.05 : 1 }],
+   * })} />
+   * ```
+   */
+  hovered: boolean;
+
+  /**
    * Custom user-injected tokens — populated via `useTokenInjection()`.
    *
    * Augment the `CustomTokens` interface via module declaration for full

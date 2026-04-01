@@ -139,6 +139,11 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     inlineRem,
     width: screenWidth,
     height: screenHeight,
+    // Interaction state — always false in the global store.
+    // __InteractiveView overrides these per-component when the Babel plugin
+    // detects t.pressed / t.hovered in a style or prop function.
+    active: false,
+    hovered: false,
     custom: getCustomTokens(),
   };
 }

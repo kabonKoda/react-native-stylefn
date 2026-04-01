@@ -11,13 +11,23 @@ export { useStyleFn } from './hooks/useStyleFn';
 export { useTheme } from './hooks/useTheme';
 export { usePropsFn } from './hooks/usePropsFn';
 export type { TokenProp } from './hooks/usePropsFn';
-export {
-  useLayout,
-  LAYOUT_DEBOUNCE_MS,
-  LAYOUT_FLUSH_INTERVAL_MS,
-} from './hooks/useLayout';
-export type { UseLayoutReturn } from './hooks/useLayout';
 export { useTokenInjection } from './hooks/useTokenInjection';
+// Per-component state observer hooks
+// useStyleFn(id)       — full token store merged with component active/hovered/layout
+// useLayoutFn(id)      — layout dimensions only { width, height }
+// useInteractiveFn(id) — interaction state only { active, hovered }
+export { useLayoutFn } from './hooks/useLayoutFn';
+export { useInteractiveFn } from './hooks/useInteractiveFn';
+
+// Per-component state registry types
+export type { ComponentState, InteractiveState } from './componentRegistry';
+// Registry utilities (for advanced / testing use)
+export {
+  registerComponent,
+  unregisterComponent,
+  getComponentState,
+  subscribeComponentState,
+} from './componentRegistry';
 
 // Types — exported for consumers to use in their own code
 export type {
@@ -105,3 +115,7 @@ export { __subscribeStyleFn } from './resolve';
 
 // Layout-aware wrapper (used by Babel plugin for children-as-function with layout measurement)
 export { __LayoutView } from './layoutView';
+
+// Interaction-aware wrapper (used by Babel plugin when style/prop functions reference t.active
+// or t.hovered — auto-injects touch/mouse handlers and merges local state into token store)
+export { __InteractiveView } from './interactiveView';
