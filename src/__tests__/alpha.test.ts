@@ -9,7 +9,7 @@
  *  - Opacity normalisation (0-1 and 0-100 ranges, clamping)
  *  - Tailwind migration patterns (the primary use case)
  */
-import { alpha } from '../tokens/alpha';
+import { alpha, createColorsProxy } from '../tokens/alpha';
 
 // Helper: parse an 8-char hex string into [r, g, b, a] integers
 function fromHex8(hex: string): [number, number, number, number] {
@@ -255,6 +255,81 @@ describe('alpha(color, opacity)', () => {
     it('accepts opacity as integer percentage (10 → 10%)', () => {
       const [, , , a] = fromHex8(alpha('#6366f1', 10));
       expect(a).toBe(Math.round(0.1 * 255));
+    });
+  });
+
+  // ── createColorsProxy — t.colors['token/opacity'] ───────────────────────────
+
+  describe('createColorsProxy — /opacity suffix on t.colors', () => {
+    const colors = {
+      'primary': '#6366f1',
+      'muted': '#94a3b8',
+      'muted-foreground': '#64748b',
+      'border': '#e2e8f0',
+      'yellow-900': '#713f12',
+    };
+    const proxy = createColorsProxy(colors);
+
+    it('passes through plain keys unchanged', () => {
+      expect(proxy['primary']).toBe('#6366f1');
+      expect(proxy['muted']).toBe('#94a3b8');
+    });
+
+    it('applies /percentage opacity: primary/10', () => {
+      const result = proxy['primary/10'];
+      expect(result).toMatch(/^#[0-9a-f]{8}$/);
+      // Should equal alpha('#6366f1', 10) = alpha at 10%
+      expect(result).toBe(alpha('#6366f1', 10));
+    });
+
+    it('applies /percentage opacity: muted/30', () => {
+      expect(proxy['muted/30']).toBe(alpha('#94a3b8', 30));
+    });
+
+    it('applies /percentage opacity: muted/50', () => {
+      expect(proxy['muted/50']).toBe(alpha('#94a3b8', 50));
+    });
+
+    it('works with hyphenated token names: muted-foreground/30', () => {
+      expect(proxy['muted-foreground/30']).toBe(alpha('#64748b', 30));
+    });
+
+    it('works with numeric token names: yellow-900/30', () => {
+      expect(proxy['yellow-900/30']).toBe(alpha('#713f12', 30));
+    });
+
+    it('works with fraction opacity: border/0.2', () => {
+      expect(proxy['border/0.2']).toBe(alpha('#e2e8f0', 0.2));
+    });
+
+    it('returns undefined for unknown base key', () => {
+      expect(proxy['nonexistent/50']).toBeUndefined();
+    });
+
+    it('Tailwind pattern: bg-primary/10 → primary/10', () => {
+      const result = proxy['primary/10']!;
+      const h = result.replace('#', '');
+      const a = parseInt(h.slice(6, 8), 16);
+      expect(a).toBe(Math.round(0.1 * 255));
+    });
+
+    it('Tailwind pattern: bg-muted/50', () => {
+      const result = proxy['muted/50']!;
+      const h = result.replace('#', '');
+      const a = parseInt(h.slice(6, 8), 16);
+      expect(a).toBe(Math.round(0.5 * 255));
+    });
+
+    it('Tailwind pattern: border-border/20', () => {
+      const result = proxy['border/20']!;
+      const h = result.replace('#', '');
+      const a = parseInt(h.slice(6, 8), 16);
+      expect(a).toBe(Math.round(0.2 * 255));
+    });
+
+    it('dark:bg-yellow-900/30 pattern', () => {
+      const result = proxy['yellow-900/30']!;
+      expect(result).toBe(alpha('#713f12', 30));
     });
   });
 

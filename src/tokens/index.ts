@@ -13,7 +13,7 @@ import { deriveOrientation } from './orientation';
 import { derivePlatform } from './platform';
 import { deriveDevice } from './device';
 import { evaluateCalc } from '../units';
-import { alpha } from './alpha';
+import { alpha, createColorsProxy } from './alpha';
 
 /**
  * Assembles the full StyleTokens object from all device/system state + config.
@@ -105,7 +105,7 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
       opacity: resolvedOpacity,
       ...(resolvedBorderWidth ? { borderWidth: resolvedBorderWidth } : {}),
     } as StyleTokens['theme'],
-    colors: colors as StyleTokens['colors'],
+    colors: createColorsProxy(colors) as StyleTokens['colors'],
     dark,
     colorScheme,
     breakpoint: createBreakpointQuery(screenWidth, theme.screens),

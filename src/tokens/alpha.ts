@@ -66,6 +66,62 @@ export function alpha(color: string, opacity: number): string {
 }
 
 // =============================================================================
+// t.colors Proxy — `/opacity` suffix support
+// =============================================================================
+
+/**
+ * Wraps a resolved colors map in a `Proxy` that intercepts any key containing
+ * a `/opacity` suffix and automatically applies the alpha helper.
+ *
+ * This mirrors Tailwind's `/opacity` modifier at runtime:
+ *
+ * ```tsx
+ * t.colors['primary/10']          // primary at 10%
+ * t.colors['muted-foreground/30'] // muted-foreground at 30%
+ * t.colors['yellow-900/50']       // yellow-900 at 50%
+ * t.colors['border/20']           // border at 20%
+ * ```
+ *
+ * Keys without a `/` pass through unchanged — full backward compatibility.
+ *
+ * The opacity value after `/` follows the same rules as `alpha()`:
+ *   - `0–1`    → fraction (e.g. `primary/0.5`)
+ *   - `2–100`  → percentage (e.g. `primary/50`, `primary/10`)
+ *
+ * @param colors Plain resolved colors map.
+ * @returns A Proxy that resolves `/opacity` keys on the fly.
+ */
+export function createColorsProxy(
+  colors: Record<string, string>
+): Record<string, string> {
+  return new Proxy(colors, {
+    get(target, prop: string | symbol) {
+      if (typeof prop !== 'string') {
+        return (target as Record<string | symbol, string>)[prop];
+      }
+
+      // Fast path — no slash, no Tailwind opacity suffix
+      const slashIdx = prop.lastIndexOf('/');
+      if (slashIdx === -1) {
+        return target[prop];
+      }
+
+      const colorKey = prop.slice(0, slashIdx);
+      const opacityStr = prop.slice(slashIdx + 1);
+      const opacity = parseFloat(opacityStr);
+
+      // Only activate when the base key exists and opacity is a valid number
+      if (!isNaN(opacity) && colorKey in target) {
+        return alpha(target[colorKey]!, opacity);
+      }
+
+      // Fall through for unknown keys (e.g. 'some-unknown-key/30')
+      return target[prop];
+    },
+  });
+}
+
+// =============================================================================
 // Internal helpers
 // =============================================================================
 

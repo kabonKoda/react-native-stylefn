@@ -3,7 +3,7 @@ import { defaultTheme, defaultCSSVariables } from './config/defaults';
 import { createBreakpointQuery } from './tokens/breakpoint';
 import { defaultDevice } from './tokens/device';
 import { evaluateCalc } from './units';
-import { alpha } from './tokens/alpha';
+import { alpha, createColorsProxy } from './tokens/alpha';
 
 /**
  * Static fallback tokens — no native API calls at module init time.
@@ -32,7 +32,7 @@ const fallbackTokens: StyleTokens = {
     shadows: defaultTheme.shadows ?? {},
     opacity: defaultTheme.opacity,
   } as StyleTokens['theme'],
-  colors: fallbackColors as StyleTokens['colors'],
+  colors: createColorsProxy(fallbackColors) as StyleTokens['colors'],
   dark: false,
   colorScheme: 'light',
   breakpoint: createBreakpointQuery(fallbackScreen.width, defaultTheme.screens),
