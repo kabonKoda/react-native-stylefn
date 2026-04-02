@@ -29,6 +29,15 @@ function parseCSSVariables(css) {
   // from being included in selector matches
   css = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
+  // Strip @tailwind directives (no-op in RN — defaults are already built in)
+  css = css.replace(/@tailwind\s+[^;]+;/g, '');
+
+  // Strip @import directives (not supported in RN context)
+  css = css.replace(/@import\s+[^;]+;/g, '');
+
+  // Unwrap @layer blocks — extract inner content so nested selectors are parsed
+  css = css.replace(/@layer\s+[a-zA-Z0-9_-]+\s*\{([\s\S]*?)\n\}/g, '$1');
+
   const blockRegex = /([^{]+)\{([^}]*)\}/g;
   let match;
 
@@ -75,6 +84,54 @@ function parseCSSVariables(css) {
 // =============================================================================
 // Type Declaration Generator
 // =============================================================================
+
+/**
+ * Regex for bare HSL values (shadcn/ui convention): "220 13% 91%"
+ */
+const BARE_HSL_RE =
+  /^\s*(\d+\.?\d*)\s+(\d+\.?\d*)%\s+(\d+\.?\d*)%\s*(?:\/\s*(\d+\.?\d*)%?\s*)?$/;
+
+/**
+ * Regex for hex color values: #RGB, #RGBA, #RRGGBB, #RRGGBBAA
+ */
+const HEX_COLOR_RE = /^\s*#([0-9a-fA-F]{3,8})\s*$/;
+
+/**
+ * Check if a CSS variable value looks like a color.
+ */
+function isColorLikeValue(value) {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (BARE_HSL_RE.test(trimmed)) return true;
+  if (HEX_COLOR_RE.test(trimmed)) return true;
+  if (/^hsla?\s*\(/i.test(trimmed)) return true;
+  if (/^rgba?\s*\(/i.test(trimmed)) return true;
+  return false;
+}
+
+/**
+ * Extract auto-detected color variable keys from raw CSS vars.
+ * Returns an array of variable names whose values look like colors.
+ */
+function autoDetectColorKeys(rawVars) {
+  if (!rawVars || typeof rawVars !== 'object') return [];
+  const keys = [];
+  for (const [key, value] of Object.entries(rawVars)) {
+    if (key.startsWith('color-')) continue;
+    if (
+      key.startsWith('shadow-') ||
+      key.startsWith('radius') ||
+      key.startsWith('font-') ||
+      key.startsWith('spacing-') ||
+      key.startsWith('breakpoint-')
+    )
+      continue;
+    if (isColorLikeValue(value)) {
+      keys.push(key);
+    }
+  }
+  return keys;
+}
 
 /**
  * Flatten nested color objects (Tailwind convention).
@@ -268,6 +325,13 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
       ...Object.keys(parsedCss.dark || {}),
     ];
 
+    // Auto-detected color-like raw CSS variables (bare HSL, hex, etc.)
+    // e.g. --input: 220 13% 91% → auto-detected as color → key "input"
+    const autoDetectedKeys = [
+      ...autoDetectColorKeys(parsedCss.rawVars?.light || {}),
+      ...autoDetectColorKeys(parsedCss.rawVars?.dark || {}),
+    ];
+
     const allColorKeys = [
       // Full Tailwind v3 palette — always available
       ...TAILWIND_COLOR_KEYS,
@@ -277,6 +341,8 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
       'danger',
       'success',
       'warning',
+      // Auto-detected color vars from raw CSS (bare HSL, hex, etc.)
+      ...autoDetectedKeys,
       // User's theme.colors (nested objects flattened, overrides palette keys)
       ...userColorKeys,
       // CSS --color-* variables

@@ -709,6 +709,139 @@ export function resolveShadowMap(
   return result;
 }
 
+// =============================================================================
+// Auto-detect color-like CSS variables
+//
+// Scans raw CSS variables and identifies values that look like colors:
+//   - Bare HSL values: "220 13% 91%" (shadcn/ui convention)
+//   - Hex colors: "#fff", "#ffffff"
+//   - hsl()/rgb() function calls
+//
+// Detected color vars are auto-promoted to t.colors.* so users can write:
+//   --input: 220 13% 91%;
+// and use it as:
+//   t.colors.input
+// without needing to manually map `input: 'hsl(var(--input))'` in config.
+// =============================================================================
+
+/**
+ * Regex for bare HSL values (the shadcn/ui convention):
+ *   "220 13% 91%"
+ *   "0 0% 100%"
+ *   "220 13% 91% / 0.5" (with alpha)
+ *
+ * Does NOT match plain numbers, shadow strings, keywords, etc.
+ */
+const BARE_HSL_RE =
+  /^\s*(\d+\.?\d*)\s+(\d+\.?\d*)%\s+(\d+\.?\d*)%\s*(?:\/\s*(\d+\.?\d*)%?\s*)?$/;
+
+/**
+ * Regex for hex color values: #RGB, #RGBA, #RRGGBB, #RRGGBBAA
+ */
+const HEX_COLOR_RE = /^\s*#([0-9a-fA-F]{3,8})\s*$/;
+
+/**
+ * Check if a CSS variable value looks like a color.
+ */
+function isColorLikeValue(value: string): boolean {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trim();
+
+  // Bare HSL values (shadcn convention): "220 13% 91%"
+  if (BARE_HSL_RE.test(trimmed)) return true;
+
+  // Hex colors: #fff, #ffffff, etc.
+  if (HEX_COLOR_RE.test(trimmed)) return true;
+
+  // hsl()/hsla()/rgb()/rgba() function calls
+  if (/^hsla?\s*\(/i.test(trimmed)) return true;
+  if (/^rgba?\s*\(/i.test(trimmed)) return true;
+
+  return false;
+}
+
+/**
+ * Convert a bare HSL value string to an hsl() function call string.
+ * e.g. "220 13% 91%" → "hsl(220, 13%, 91%)"
+ *      "220 13% 91% / 0.5" → "hsla(220, 13%, 91%, 0.5)"
+ */
+function wrapBareHsl(value: string): string {
+  const match = value.trim().match(BARE_HSL_RE);
+  if (!match) return value;
+
+  const h = match[1];
+  const s = match[2];
+  const l = match[3];
+  const a = match[4];
+
+  if (a !== undefined) {
+    return `hsla(${h}, ${s}%, ${l}%, ${a})`;
+  }
+  return `hsl(${h}, ${s}%, ${l}%)`;
+}
+
+/**
+ * Scan raw CSS variables and return a map of auto-detected color variables.
+ * Only variables whose values look like colors are included.
+ *
+ * Bare HSL values are converted to hex via hsl→hex conversion.
+ * Other color formats are resolved via resolveColorExpression.
+ *
+ * Variables that start with known non-color prefixes (shadow-, radius, etc.)
+ * are skipped even if their values happen to match a color pattern.
+ *
+ * @param rawVars - The raw CSS variables map (-- prefix already stripped)
+ * @param allRawVars - Full raw vars map for var() resolution within color values
+ * @returns Map of variable name → resolved hex color string
+ */
+export function autoDetectColorVars(
+  rawVars: Record<string, string>,
+  allRawVars?: Record<string, string>
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  const vars = allRawVars ?? rawVars;
+
+  for (const [key, value] of Object.entries(rawVars)) {
+    // Skip --color-* vars (already handled by the existing prefix-based logic)
+    if (key.startsWith('color-')) continue;
+
+    // Skip known non-color variable prefixes
+    if (
+      key.startsWith('shadow-') ||
+      key.startsWith('radius') ||
+      key.startsWith('font-') ||
+      key.startsWith('spacing-') ||
+      key.startsWith('breakpoint-')
+    ) {
+      continue;
+    }
+
+    // First resolve any var() references in the value
+    let resolved = value;
+    if (resolved.includes('var(')) {
+      resolved = resolveColorExpression(resolved, vars);
+    }
+
+    // Check if the (resolved) value looks like a color
+    if (!isColorLikeValue(resolved)) continue;
+
+    // Convert bare HSL to wrapped hsl() call, then resolve to hex
+    if (BARE_HSL_RE.test(resolved.trim())) {
+      resolved = wrapBareHsl(resolved);
+    }
+
+    // Resolve hsl()/rgb() to hex
+    resolved = resolveColorExpression(resolved, vars);
+
+    // Only include if we got a non-empty result
+    if (resolved && resolved !== 'transparent') {
+      result[key] = resolved;
+    }
+  }
+
+  return result;
+}
+
 /**
  * Get the raw CSS variables map for a given color scheme.
  * Falls back to constructing from color vars if rawVars is not available.

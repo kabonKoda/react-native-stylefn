@@ -14,4 +14,5 @@ export {
   resolveColorMap,
   resolveShadowMap,
   getRawVarsForScheme,
+  autoDetectColorVars,
 } from './cssExpressionResolver';

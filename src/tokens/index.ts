@@ -7,6 +7,7 @@ import {
   resolveNumericMap,
   resolveColorMap,
   resolveShadowMap,
+  autoDetectColorVars,
 } from '../config/cssExpressionResolver';
 import { createBreakpointQuery } from './breakpoint';
 import { deriveOrientation } from './orientation';
@@ -67,15 +68,22 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     ? defaultCSSVariables.dark
     : defaultCSSVariables.light;
 
-  // User's --color-* CSS variables from global.css (highest priority)
+  // User's --color-* CSS variables from global.css
   const cssColorVars = dark ? cssVars.dark : cssVars.light;
+
+  // Auto-detect color-like raw CSS variables (bare HSL values, hex, etc.)
+  // This allows shadcn/ui-style variables like `--input: 220 13% 91%` to
+  // automatically become available as `t.colors.input` without manual config.
+  const autoDetectedColors = autoDetectColorVars(rawVars);
 
   // Merge priority (lowest → highest):
   // 1. Default CSS color variables (built-in fallbacks)
-  // 2. Resolved theme colors (from config, including hsl(var(...)) expressions)
-  // 3. User's --color-* CSS variables (explicit overrides from global.css)
+  // 2. Auto-detected color vars from raw CSS (bare HSL, hex, etc.)
+  // 3. Resolved theme colors (from config, including hsl(var(...)) expressions)
+  // 4. User's --color-* CSS variables (explicit overrides from global.css)
   const colors: Record<string, string> = {
     ...defaultSchemeColors,
+    ...autoDetectedColors,
     ...resolvedThemeColors,
     ...cssColorVars,
   };

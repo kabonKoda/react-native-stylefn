@@ -29,6 +29,17 @@ export function parseCSSVariables(css: string): CSSVariables {
   // from being included in selector matches
   css = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
+  // Strip @tailwind directives (no-op in RN — defaults are already built in)
+  // e.g. @tailwind base; @tailwind components; @tailwind utilities;
+  css = css.replace(/@tailwind\s+[^;]+;/g, '');
+
+  // Strip @import directives (not supported in RN context)
+  css = css.replace(/@import\s+[^;]+;/g, '');
+
+  // Unwrap @layer blocks — extract inner content so nested selectors are parsed
+  // e.g. @layer base { :root { --background: ... } } → :root { --background: ... }
+  css = css.replace(/@layer\s+[a-zA-Z0-9_-]+\s*\{([\s\S]*?)\n\}/g, '$1');
+
   // Match selector blocks: selector { ... }
   const blockRegex = /([^{]+)\{([^}]*)\}/g;
   let match: RegExpExecArray | null;
