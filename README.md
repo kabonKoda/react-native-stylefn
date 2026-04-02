@@ -815,7 +815,7 @@ When both tokens are used the plugin emits `__needsActive` and `__needsHovered` 
 // accessibilityState referencing t.active:
 <View
   style={(t) => ({ opacity: t.active ? 0.7 : 1 })}
-  accessibilityState={(t) => ({ pressed: t.active })}
+  accessibilityState={(t) => ({ pressed: t.hovered })}
 />
 ```
 

@@ -55,9 +55,8 @@ export const defaultTheme: ThemeConfig = {
   },
   colors: {
     // Semantic color aliases — out-of-the-box defaults.
-    // For the full Tailwind color palette, install tailwindcss and
-    // add @import "tailwindcss" to your global.css. The --color-* vars
-    // it generates are auto-extracted into t.colors.* at build time.
+    // The full Tailwind palette is loaded dynamically from tailwindcss/colors
+    // at build time when @tailwind directives are in your global.css.
     primary: '#3b82f6', // blue-500
     secondary: '#8b5cf6', // violet-500
     danger: '#ef4444', // red-500

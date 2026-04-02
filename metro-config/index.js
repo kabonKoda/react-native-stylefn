@@ -297,6 +297,59 @@ function toUnion(keys) {
 // for default keys even when they only use theme.extend.
 // =============================================================================
 
+/**
+ * Try to load the Tailwind CSS color palette dynamically from the
+ * installed tailwindcss package. Returns a flat map of color keys + values
+ * and an array of all flattened keys.
+ *
+ * Works with both Tailwind v3 (`tailwindcss/colors`) and v4.
+ * Returns empty results if tailwindcss is not installed.
+ */
+function loadTailwindPalette(projectRoot) {
+  const SKIP = new Set([
+    'inherit',
+    'current',
+    'transparent',
+    'lightBlue',
+    'warmGray',
+    'trueGray',
+    'coolGray',
+    'blueGray',
+  ]);
+  try {
+    const colorsPath = require.resolve('tailwindcss/colors', {
+      paths: [projectRoot],
+    });
+    // Suppress deprecated color name warnings from Tailwind v3
+    // (accessing renamed properties like lightBlue triggers console.warn via getters)
+    const origWarn = console.warn;
+    console.warn = () => {};
+    try {
+      const colors = require(colorsPath);
+      const flat = {};
+      const keys = [];
+      for (const [name, value] of Object.entries(colors)) {
+        if (SKIP.has(name)) continue;
+        if (typeof value === 'string') {
+          flat[name] = value;
+          keys.push(name);
+        } else if (value && typeof value === 'object') {
+          for (const [shade, hex] of Object.entries(value)) {
+            const key = `${name}-${shade}`;
+            flat[key] = hex;
+            keys.push(key);
+          }
+        }
+      }
+      return { flat, keys };
+    } finally {
+      console.warn = origWarn;
+    }
+  } catch {
+    return { flat: {}, keys: [] };
+  }
+}
+
 const DEFAULT_THEME_KEYS = {
   spacing: ['0', '1', '2', '3', '4', '5', '6', '8', '10', '12'],
   fontSize: ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl'],
@@ -304,8 +357,7 @@ const DEFAULT_THEME_KEYS = {
   fontWeight: ['normal', 'medium', 'semibold', 'bold'],
   opacity: ['0', '25', '50', '75', '100'],
   screens: ['sm', 'md', 'lg', 'xl'],
-  // Semantic defaults only — Tailwind palette colors come from CSS vars
-  // when users install tailwindcss and add @import "tailwindcss" to their CSS.
+  // Semantic defaults only — Tailwind palette loaded dynamically from tailwindcss/colors
   colors: ['primary', 'secondary', 'danger', 'success', 'warning'],
   shadows: ['sm', 'md', 'lg'],
 };
@@ -431,7 +483,12 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
       ...autoDetectColorKeys(parsedCss.rawVars?.dark || {}),
     ];
 
+    // Dynamically load Tailwind palette keys from tailwindcss/colors
+    const twPalette = loadTailwindPalette(projectRoot);
+
     const allColorKeys = [
+      // Tailwind palette (loaded from tailwindcss/colors if installed)
+      ...twPalette.keys,
       // Semantic defaults (built-in)
       'primary',
       'secondary',
@@ -625,6 +682,25 @@ function withStyleFn(config, options = {}) {
       cssContent = expandTailwindImports(cssContent, cssPath, projectRoot);
 
       parsedCss = parseCSSVariables(cssContent);
+
+      // If @tailwind directives are in the CSS (v3) or tailwindcss is installed,
+      // load the color palette from tailwindcss/colors and inject into parsedCss.light
+      // as lowest-priority color values (user CSS vars always win).
+      const twPalette = loadTailwindPalette(projectRoot);
+      if (twPalette.keys.length > 0) {
+        // Inject as lowest priority — don't overwrite existing CSS-defined colors
+        const injected = { ...twPalette.flat, ...parsedCss.light };
+        parsedCss.light = injected;
+        // Also inject the --color-* prefixed versions into rawVars for expression resolution
+        for (const [key, val] of Object.entries(twPalette.flat)) {
+          if (!parsedCss.rawVars.light[`color-${key}`]) {
+            parsedCss.rawVars.light[`color-${key}`] = val;
+          }
+        }
+        console.log(
+          `[react-native-stylefn] ✓ Loaded ${twPalette.keys.length} Tailwind palette colors from tailwindcss/colors`
+        );
+      }
 
       const lightColorCount = Object.keys(parsedCss.light).length;
       const lightRawCount = Object.keys(parsedCss.rawVars.light).length;
