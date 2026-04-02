@@ -913,6 +913,42 @@ Every style function receives a `StyleTokens` object:
 | `fontScale`     | `number`                              | Current font scale multiplier                                                               |
 | `boldText`      | `boolean`                             | Bold text enabled (iOS)                                                                     |
 | `highContrast`  | `boolean`                             | High contrast enabled                                                                       |
+| `alpha`         | `(color, opacity) => string`          | Apply opacity to any color → returns `#RRGGBBAA` hex                                        |
+| `vw`            | `(v: number) => number`               | Viewport width unit: `t.vw(50)` = 50% of screen width                                       |
+| `vh`            | `(v: number) => number`               | Viewport height unit: `t.vh(50)` = 50% of screen height                                     |
+| `rem`           | `(v: number) => number`               | Rem unit: `t.rem(1)` = 16px (configurable via `inlineRem`)                                  |
+| `calc`          | `(expr: string) => number`            | Evaluate calc expressions: `t.calc('100vw - 32px')`                                         |
+
+### Color Opacity — `t.alpha()`
+
+Apply opacity to any color, returning an `#RRGGBBAA` hex string. This is the runtime equivalent of Tailwind's `/opacity` modifier:
+
+```tsx
+<View
+  style={(t) => ({
+    backgroundColor: t.alpha(t.colors.primary, 0.1), // primary at 10% opacity
+    borderColor: t.alpha(t.colors.border, 0.5), // border at 50% opacity
+    shadowColor: t.alpha('#000000', 0.25), // black at 25%
+  })}
+/>
+```
+
+**Opacity range:**
+
+- `0–1` → treated as a fraction (e.g. `0.5` = 50%)
+- `1–100` → treated as a percentage (e.g. `50` = 50%)
+
+**Shorthand via `t.colors` proxy** — append `/opacity` to any color key:
+
+```tsx
+<View
+  style={(t) => ({
+    backgroundColor: t.colors['primary/10'], // primary at 10%
+    borderColor: t.colors['muted-foreground/30'], // muted-foreground at 30%
+    color: t.colors['yellow-900/50'], // Tailwind yellow-900 at 50%
+  })}
+/>
+```
 
 ### Breakpoint Queries
 
@@ -1208,7 +1244,151 @@ Now your custom tokens are available in every style function:
 
 ### Using `global.css`
 
-Create a `global.css` in your project root to define your **light/dark color palette** and **design tokens**. Two naming conventions are supported:
+Create a `global.css` in your project root to define your **light/dark color palette** and **design tokens**. Three approaches are supported — pick the one that fits your workflow:
+
+#### Approach 1: shadcn/ui-style (Recommended — zero config needed)
+
+CSS variables with color-like values are **automatically detected** and promoted to `t.colors.*`. Just paste your shadcn/ui CSS and everything works — **no `rn-stylefn.config.js` mapping required**:
+
+```css
+/* global.css — shadcn/ui style, works out of the box */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+  }
+}
+```
+
+Then use directly — no config mapping needed:
+
+```tsx
+<View style={(t) => ({
+  backgroundColor: t.colors.background,   // auto-detected from bare HSL
+  borderColor: t.colors.border,           // auto-detected
+})} />
+
+<TextInput style={(t) => ({
+  borderColor: t.colors.input,            // auto-detected
+  color: t.colors.foreground,             // auto-detected
+})} />
+```
+
+> **How auto-detection works:** The CSS parser scans all raw CSS variables and identifies values that look like colors — bare HSL values (`220 13% 91%`), hex colors (`#fff`), `hsl()`/`rgb()` functions. These are automatically converted to hex and made available as `t.colors.*`. Non-color values like `--radius: 8` and `--shadow-1: 0px 1px 2px...` are correctly excluded.
+
+> **Supported CSS directives:**
+>
+> - `@tailwind base;`, `@tailwind components;`, `@tailwind utilities;` — silently stripped (defaults are built in)
+> - `@import ...;` — silently stripped (not applicable in RN)
+> - `@layer base { ... }` — unwrapped so inner `:root`/`.dark` selectors are parsed normally
+
+#### Approach 2: Explicit `--color-*` prefix (backward compatible)
+
+Variables with the `--color-` prefix are mapped to `t.colors.*` with the prefix stripped:
+
+```css
+/* global.css */
+:root {
+  --color-background: #ffffff;
+  --color-text: #111827;
+  --color-primary: #3b82f6;
+}
+.dark {
+  --color-background: #0f172a;
+  --color-text: #f8fafc;
+  --color-primary: #60a5fa;
+}
+```
+
+```tsx
+<Text style={(t) => ({ color: t.colors.text })} />
+```
+
+#### Approach 3: Config mapping with `hsl(var(...))` (full control)
+
+Define raw HSL values in CSS and explicitly map them in `rn-stylefn.config.js`:
+
+```css
+/* global.css */
+:root {
+  --primary: 224 71% 51%;
+  --primary-foreground: 210 20% 98%;
+  --radius: 8;
+}
+```
+
+```js
+// rn-stylefn.config.js
+module.exports = {
+  theme: {
+    colors: {
+      primary: {
+        DEFAULT: 'hsl(var(--primary))',
+        foreground: 'hsl(var(--primary-foreground))',
+      },
+    },
+    borderRadius: {
+      lg: 'var(--radius)',
+      md: 'calc(var(--radius) - 2px)',
+    },
+  },
+};
+```
+
+#### Combining all approaches
+
+All three approaches work together. The merge priority (lowest → highest):
+
+1. Built-in default colors
+2. Auto-detected color vars (bare HSL, hex, etc.)
+3. Config-mapped colors (`rn-stylefn.config.js`)
+4. `--color-*` CSS variables
+
+This means config mappings always override auto-detected values, and `--color-*` variables always win. You can use all three in the same project.
+
+#### Full example with all variable types
 
 ```css
 /* global.css */
@@ -1223,9 +1403,10 @@ Create a `global.css` in your project root to define your **light/dark color pal
   --color-primary: #3b82f6;
   --color-secondary: #8b5cf6;
 
-  /* ---- Generic variables (for var() resolution in config) ---- */
-  /* HSL color values — use with hsl(var(--primary)) in config */
+  /* ---- Auto-detected colors (bare HSL → t.colors.*) ---- */
   --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 224 71% 51%;
   --primary: 224 71% 51%;
   --primary-foreground: 210 20% 98%;
   --secondary: 220 14% 96%;
@@ -1234,17 +1415,14 @@ Create a `global.css` in your project root to define your **light/dark color pal
   --muted: 220 14% 96%;
   --muted-foreground: 220 9% 46%;
 
-  /* Design tokens — use with var(--radius), calc(var(--radius) - 2px) */
+  /* ---- Non-color tokens (for var() resolution in config) ---- */
   --radius: 8;
-
-  /* Shadow levels — use with var(--shadow-N) in config */
   --shadow-0: none;
   --shadow-1: 0px 1px 2px 0px rgba(0, 0, 0, 0.05);
   --shadow-4: 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1);
 }
 
 .dark {
-  /* Dark mode colors */
   --color-background: #0f172a;
   --color-surface: #1e293b;
   --color-border: #334155;
@@ -1253,8 +1431,9 @@ Create a `global.css` in your project root to define your **light/dark color pal
   --color-primary: #60a5fa;
   --color-secondary: #a78bfa;
 
-  /* Dark mode HSL overrides */
   --border: 215 28% 17%;
+  --input: 215 28% 17%;
+  --ring: 216 91% 70%;
   --primary: 216 91% 70%;
   --primary-foreground: 221 39% 11%;
   --secondary: 215 28% 17%;
@@ -1264,11 +1443,6 @@ Create a `global.css` in your project root to define your **light/dark color pal
   --shadow-4: 0px 4px 6px -1px rgba(0, 0, 0, 0.4), 0px 2px 4px -2px rgba(0, 0, 0, 0.3);
 }
 ```
-
-> **Variable naming**:
->
-> - `--color-<name>` format: The `--color-` prefix is stripped, so `--color-text` → `t.colors.text`
-> - `--<name>` format: Available for `var(--<name>)` resolution in config values. Both are stored in `rawVars` for CSS expression resolution.
 
 > **Auto-loaded:** When you set `input: './global.css'` in `withStyleFn()` (step 2 of Quick Start), Metro processes the CSS at build time and `StyleProvider` loads it automatically as a virtual module — no manual import or prop needed.
 

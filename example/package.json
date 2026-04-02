@@ -40,10 +40,13 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "babel-preset-expo": "~54.0.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "prettier-plugin-tailwindcss": "^0.5.11",
     "react-native-builder-bob": "^0.40.13",
     "react-native-monorepo-config": "^0.3.3",
+    "tailwindcss": "^3.4.17",
     "typescript": "~5.9.2"
   },
   "private": true

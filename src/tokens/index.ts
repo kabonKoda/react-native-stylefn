@@ -16,6 +16,84 @@ import { deriveDevice } from './device';
 import { evaluateCalc } from '../units';
 import { alpha, createColorsProxy } from './alpha';
 
+// =============================================================================
+// CSS variable → theme token auto-extraction
+//
+// Scans rawVars for well-known CSS variable prefixes and maps them into
+// their corresponding theme sections. This works for ANY CSS source that
+// follows standard naming conventions (Tailwind v4, shadcn/ui, custom CSS):
+//
+//   --text-sm: 14           → t.theme.fontSize['sm']
+//   --radius-lg: 8          → t.theme.borderRadius['lg']
+//   --shadow-md: 0px 4px... → t.theme.shadows['md']
+//   --font-weight-bold: 700 → t.theme.fontWeight['bold']
+//   --color-red-50: #...    → t.colors['red-50']   (handled separately)
+//
+// Merged at LOWEST priority — user config (rn-stylefn.config.js) always wins.
+// =============================================================================
+
+/** --text-* → fontSize (skip --text-*--line-height variants) */
+function extractFontSizeVars(
+  rawVars: Record<string, string>
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [key, value] of Object.entries(rawVars)) {
+    if (key.startsWith('text-') && !key.includes('--')) {
+      const num = parseFloat(value);
+      if (!isNaN(num) && num > 0) result[key.slice(5)] = num;
+    }
+  }
+  return result;
+}
+
+/** --radius / --radius-* → borderRadius */
+function extractBorderRadiusVars(
+  rawVars: Record<string, string>
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [key, value] of Object.entries(rawVars)) {
+    if (key === 'radius' || key.startsWith('radius-')) {
+      const num = parseFloat(value);
+      if (!isNaN(num))
+        result[key === 'radius' ? 'DEFAULT' : key.slice(7)] = num;
+    }
+  }
+  return result;
+}
+
+/** --shadow / --shadow-* → shadows (boxShadow string, skip drop-shadow-*) */
+function extractShadowVars(
+  rawVars: Record<string, string>
+): Record<string, { boxShadow: string }> {
+  const result: Record<string, { boxShadow: string }> = {};
+  for (const [key, value] of Object.entries(rawVars)) {
+    if (
+      (key === 'shadow' || key.startsWith('shadow-')) &&
+      !key.startsWith('drop-shadow-') &&
+      value &&
+      value !== 'none'
+    ) {
+      result[key === 'shadow' ? 'DEFAULT' : key.slice(7)] = {
+        boxShadow: value,
+      };
+    }
+  }
+  return result;
+}
+
+/** --font-weight-* → fontWeight */
+function extractFontWeightVars(
+  rawVars: Record<string, string>
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(rawVars)) {
+    if (key.startsWith('font-weight-') && value) {
+      result[key.slice(12)] = value;
+    }
+  }
+  return result;
+}
+
 /**
  * Assembles the full StyleTokens object from all device/system state + config.
  *
@@ -102,14 +180,27 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     ? resolveNumericMap(theme.borderWidth, rawVars, inlineRem)
     : undefined;
 
+  // -------------------------------------------------------------------------
+  // Auto-extract well-known CSS variable prefixes from rawVars.
+  // These are merged at LOWEST priority so user config always wins.
+  // Works for any CSS source (Tailwind, shadcn/ui, custom CSS, etc.)
+  // -------------------------------------------------------------------------
+  const cssFontSize = extractFontSizeVars(rawVars);
+  const cssBorderRadius = extractBorderRadiusVars(rawVars);
+  const cssShadows = extractShadowVars(rawVars);
+  const cssFontWeight = extractFontWeightVars(rawVars);
+
   return {
     theme: {
+      // Merge priority (lowest → highest):
+      // 1. Auto-extracted CSS vars (--text-*, --radius-*, --shadow-*, --font-weight-*)
+      // 2. Resolved config values (from rn-stylefn.config.js + defaults)
       spacing: resolvedSpacing,
-      fontSize: resolvedFontSize,
-      borderRadius: resolvedBorderRadius,
-      fontWeight: theme.fontWeight,
+      fontSize: { ...cssFontSize, ...resolvedFontSize },
+      borderRadius: { ...cssBorderRadius, ...resolvedBorderRadius },
+      fontWeight: { ...cssFontWeight, ...theme.fontWeight },
       colors,
-      shadows: resolvedShadows,
+      shadows: { ...cssShadows, ...resolvedShadows },
       opacity: resolvedOpacity,
       ...(resolvedBorderWidth ? { borderWidth: resolvedBorderWidth } : {}),
     } as StyleTokens['theme'],

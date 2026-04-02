@@ -14,6 +14,122 @@ const path = require('path');
 const fs = require('fs');
 
 /**
+ * Recursively unwrap @layer blocks, returning just their inner content.
+ * Handles deeply nested braces correctly by counting brace depth.
+ *
+ * e.g. @layer theme { :root { --foo: bar; } }  →  :root { --foo: bar; }
+ *
+ * Also strips bare @layer declarations (no block):
+ *   @layer base, utilities;  →  (empty)
+ */
+function unwrapAtLayerBlocks(css) {
+  // Strip bare @layer declarations (no block body): @layer base, utilities;
+  css = css.replace(/@layer\s+[^{;]+;/g, '');
+
+  let result = '';
+  let i = 0;
+
+  while (i < css.length) {
+    // Try to match the start of an @layer block at current position
+    const remaining = css.slice(i);
+    const atLayerMatch = remaining.match(/^@layer\s+[^{]+\{/);
+
+    if (atLayerMatch) {
+      const matchStr = atLayerMatch[0];
+      // Walk forward counting braces until the @layer block is closed
+      let depth = 1;
+      let j = i + matchStr.length;
+
+      while (j < css.length && depth > 0) {
+        if (css[j] === '{') depth++;
+        else if (css[j] === '}') {
+          depth--;
+          if (depth === 0) break;
+        }
+        j++;
+      }
+
+      // Extract inner content and recursively unwrap any nested @layer blocks
+      const innerContent = css.slice(i + matchStr.length, j);
+      result += unwrapAtLayerBlocks(innerContent);
+      i = j + 1; // skip past the closing }
+    } else {
+      result += css[i];
+      i++;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * If global.css contains `@import "tailwindcss"` (Tailwind v4 CSS-first),
+ * process the file through the Tailwind CLI so all generated CSS custom
+ * properties (--color-red-50, --color-green-100, etc.) are written to the
+ * output and become available as t.colors.red-50, t.colors.green-100, etc.
+ *
+ * Falls back gracefully if tailwindcss is not installed.
+ */
+function expandTailwindImports(cssContent, cssPath, projectRoot) {
+  // Only run when there's a Tailwind import
+  if (!/@import\s+['"]tailwindcss['"]/m.test(cssContent)) return cssContent;
+
+  console.log(
+    '[react-native-stylefn] Found @import "tailwindcss" — running Tailwind compiler...'
+  );
+
+  // Locate the tailwindcss binary in node_modules/.bin/
+  const binCandidates = [
+    path.join(projectRoot, 'node_modules', '.bin', 'tailwindcss'),
+    path.join(projectRoot, '..', 'node_modules', '.bin', 'tailwindcss'),
+    path.join(projectRoot, '..', '..', 'node_modules', '.bin', 'tailwindcss'),
+  ];
+
+  const twBin = binCandidates.find((p) => fs.existsSync(p));
+
+  if (!twBin) {
+    console.warn(
+      '[react-native-stylefn] ⚠  @import "tailwindcss" found but the tailwindcss\n' +
+        '   CLI binary was not found in node_modules/.bin/.\n' +
+        '   Install it:  npm install tailwindcss\n' +
+        '   CSS variables from @import will NOT be available in t.colors.* until\n' +
+        '   tailwindcss is installed and Metro is restarted.'
+    );
+    return cssContent;
+  }
+
+  try {
+    const { execSync } = require('child_process');
+    const os = require('os');
+    const outFile = path.join(os.tmpdir(), `stylefn-tw-${Date.now()}.css`);
+
+    // Run the Tailwind CLI synchronously so Metro config remains synchronous
+    execSync(`"${twBin}" --input "${cssPath}" --output "${outFile}"`, {
+      cwd: projectRoot,
+      timeout: 90000,
+      stdio: 'pipe',
+    });
+
+    const processed = fs.readFileSync(outFile, 'utf8');
+    try {
+      fs.unlinkSync(outFile);
+    } catch {}
+
+    const varCount = (processed.match(/--[a-zA-Z0-9_-]+\s*:/g) || []).length;
+    console.log(
+      `[react-native-stylefn] ✓ Tailwind CSS compiled (${varCount} CSS variables extracted)`
+    );
+    return processed;
+  } catch (err) {
+    console.warn(
+      '[react-native-stylefn] ⚠  Tailwind processing failed:',
+      err.message || String(err)
+    );
+    return cssContent;
+  }
+}
+
+/**
  * Parses CSS variables from a global.css string.
  * Handles :root (light) and .dark selectors.
  *
@@ -32,11 +148,12 @@ function parseCSSVariables(css) {
   // Strip @tailwind directives (no-op in RN — defaults are already built in)
   css = css.replace(/@tailwind\s+[^;]+;/g, '');
 
-  // Strip @import directives (not supported in RN context)
+  // Strip non-tailwind @import directives
   css = css.replace(/@import\s+[^;]+;/g, '');
 
-  // Unwrap @layer blocks — extract inner content so nested selectors are parsed
-  css = css.replace(/@layer\s+[a-zA-Z0-9_-]+\s*\{([\s\S]*?)\n\}/g, '$1');
+  // Unwrap @layer blocks using a brace-balanced parser so deeply nested
+  // structures like @layer theme { :root { ... } } are correctly extracted
+  css = unwrapAtLayerBlocks(css);
 
   const blockRegex = /([^{]+)\{([^}]*)\}/g;
   let match;
@@ -307,6 +424,33 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     });
     const shadowKeys = [...userShadowKeys, ...extendShadowKeys];
 
+    // -----------------------------------------------------------------------
+    // Auto-extract well-known CSS variable prefixes from rawVars (for types).
+    // Same logic as src/tokens/index.ts — any CSS source with standard
+    // prefixes (--text-*, --radius-*, --shadow-*, --font-weight-*) gets
+    // their keys added to the respective type sections.
+    // -----------------------------------------------------------------------
+    const lightRaw = parsedCss.rawVars?.light || {};
+    const darkRaw = parsedCss.rawVars?.dark || {};
+    const allRawKeys = [
+      ...new Set([...Object.keys(lightRaw), ...Object.keys(darkRaw)]),
+    ];
+
+    for (const key of allRawKeys) {
+      if (key.startsWith('text-') && !key.includes('--')) {
+        fontSizeKeys.push(key.slice(5));
+      } else if (key === 'radius' || key.startsWith('radius-')) {
+        borderRadiusKeys.push(key === 'radius' ? 'DEFAULT' : key.slice(7));
+      } else if (
+        (key === 'shadow' || key.startsWith('shadow-')) &&
+        !key.startsWith('drop-shadow-')
+      ) {
+        shadowKeys.push(key === 'shadow' ? 'DEFAULT' : key.slice(7));
+      } else if (key.startsWith('font-weight-')) {
+        fontWeightKeys.push(key.slice(12));
+      }
+    }
+
     // Color keys:
     // • ALWAYS include the full Tailwind palette so it shows in autocomplete
     //   regardless of whether the user provides a theme.colors override.
@@ -520,7 +664,13 @@ function withStyleFn(config, options = {}) {
   let parsedCss = { light: {}, dark: {}, rawVars: { light: {}, dark: {} } };
   if (fs.existsSync(cssPath)) {
     try {
-      const cssContent = fs.readFileSync(cssPath, 'utf8');
+      // Read the raw CSS first
+      let cssContent = fs.readFileSync(cssPath, 'utf8');
+
+      // If the CSS contains @import "tailwindcss", process it through the
+      // Tailwind CLI so all generated --color-* variables are available.
+      cssContent = expandTailwindImports(cssContent, cssPath, projectRoot);
+
       parsedCss = parseCSSVariables(cssContent);
 
       const lightColorCount = Object.keys(parsedCss.light).length;

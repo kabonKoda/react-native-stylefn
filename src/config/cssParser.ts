@@ -1,6 +1,53 @@
 import type { CSSVariables } from '../types';
 
 /**
+ * Recursively unwrap @layer blocks, returning just their inner content.
+ * Handles deeply nested braces correctly by counting brace depth.
+ *
+ * e.g. @layer theme { :root { --foo: bar; } }  →  :root { --foo: bar; }
+ *
+ * Also strips bare @layer declarations (no block):
+ *   @layer base, utilities;  →  (empty)
+ */
+function unwrapAtLayerBlocks(css: string): string {
+  // Strip bare @layer declarations (no block body): @layer base, utilities;
+  css = css.replace(/@layer\s+[^{;]+;/g, '');
+
+  let result = '';
+  let i = 0;
+
+  while (i < css.length) {
+    const remaining = css.slice(i);
+    const atLayerMatch = remaining.match(/^@layer\s+[^{]+\{/);
+
+    if (atLayerMatch) {
+      const matchStr = atLayerMatch[0];
+      let depth = 1;
+      let j = i + matchStr.length;
+
+      while (j < css.length && depth > 0) {
+        if (css[j] === '{') depth++;
+        else if (css[j] === '}') {
+          depth--;
+          if (depth === 0) break;
+        }
+        j++;
+      }
+
+      // Recursively unwrap nested @layer blocks inside this one
+      const innerContent = css.slice(i + matchStr.length, j);
+      result += unwrapAtLayerBlocks(innerContent);
+      i = j + 1; // skip past the closing }
+    } else {
+      result += css[i];
+      i++;
+    }
+  }
+
+  return result;
+}
+
+/**
  * Parses a CSS string containing :root and .dark selectors,
  * extracting CSS custom properties (variables) into light/dark maps.
  *
@@ -36,9 +83,12 @@ export function parseCSSVariables(css: string): CSSVariables {
   // Strip @import directives (not supported in RN context)
   css = css.replace(/@import\s+[^;]+;/g, '');
 
-  // Unwrap @layer blocks — extract inner content so nested selectors are parsed
-  // e.g. @layer base { :root { --background: ... } } → :root { --background: ... }
-  css = css.replace(/@layer\s+[a-zA-Z0-9_-]+\s*\{([\s\S]*?)\n\}/g, '$1');
+  // Unwrap @layer blocks using a brace-balanced parser.
+  // The simple regex approach breaks for nested blocks like:
+  //   @layer theme { :root { --foo: bar; } }
+  // because [^}] stops at the first closing brace. We walk character-by-character
+  // counting depth so every nested level is correctly unwrapped.
+  css = unwrapAtLayerBlocks(css);
 
   // Match selector blocks: selector { ... }
   const blockRegex = /([^{]+)\{([^}]*)\}/g;
