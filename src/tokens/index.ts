@@ -81,6 +81,21 @@ function extractShadowVars(
   return result;
 }
 
+/** --spacing / --spacing-* → spacing */
+function extractSpacingVars(
+  rawVars: Record<string, string>
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [key, value] of Object.entries(rawVars)) {
+    if (key === 'spacing' || key.startsWith('spacing-')) {
+      const num = parseFloat(value);
+      if (!isNaN(num))
+        result[key === 'spacing' ? 'DEFAULT' : key.slice(8)] = num;
+    }
+  }
+  return result;
+}
+
 /** --font-weight-* → fontWeight */
 function extractFontWeightVars(
   rawVars: Record<string, string>
@@ -185,6 +200,7 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
   // These are merged at LOWEST priority so user config always wins.
   // Works for any CSS source (Tailwind, shadcn/ui, custom CSS, etc.)
   // -------------------------------------------------------------------------
+  const cssSpacing = extractSpacingVars(rawVars);
   const cssFontSize = extractFontSizeVars(rawVars);
   const cssBorderRadius = extractBorderRadiusVars(rawVars);
   const cssShadows = extractShadowVars(rawVars);
@@ -193,9 +209,9 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
   return {
     theme: {
       // Merge priority (lowest → highest):
-      // 1. Auto-extracted CSS vars (--text-*, --radius-*, --shadow-*, --font-weight-*)
+      // 1. Auto-extracted CSS vars (--spacing-*, --text-*, --radius-*, --shadow-*, --font-weight-*)
       // 2. Resolved config values (from rn-stylefn.config.js + defaults)
-      spacing: resolvedSpacing,
+      spacing: { ...cssSpacing, ...resolvedSpacing },
       fontSize: { ...cssFontSize, ...resolvedFontSize },
       borderRadius: { ...cssBorderRadius, ...resolvedBorderRadius },
       fontWeight: { ...cssFontWeight, ...theme.fontWeight },

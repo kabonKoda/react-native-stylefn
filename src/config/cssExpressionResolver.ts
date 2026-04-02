@@ -757,6 +757,13 @@ function isColorLikeValue(value: string): boolean {
   if (/^hsla?\s*\(/i.test(trimmed)) return true;
   if (/^rgba?\s*\(/i.test(trimmed)) return true;
 
+  // Modern CSS color functions (Tailwind v4 uses oklch)
+  if (/^oklch\s*\(/i.test(trimmed)) return true;
+  if (/^oklab\s*\(/i.test(trimmed)) return true;
+  if (/^lab\s*\(/i.test(trimmed)) return true;
+  if (/^lch\s*\(/i.test(trimmed)) return true;
+  if (/^color\s*\(/i.test(trimmed)) return true;
+
   return false;
 }
 

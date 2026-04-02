@@ -1488,6 +1488,157 @@ Both are **auto-loaded** — no manual imports or props required. Just:
 
 `StyleProvider` automatically picks up both at runtime. Your theme tokens and CSS color variables are all available in every style function.
 
+### Using Tailwind CSS or External CSS Imports
+
+react-native-stylefn can load design tokens from **any CSS source** that defines CSS custom properties. This includes Tailwind CSS, Bootstrap, Open Props, or your own custom CSS framework.
+
+#### How it works
+
+When Metro starts, `withStyleFn()` reads your `global.css` and extracts ALL CSS custom properties (`--*` variables) from `:root` and `.dark` selectors. Variables with well-known prefixes are automatically mapped to their corresponding theme token sections:
+
+| CSS Variable      | Token                    | Example                                                   |
+| ----------------- | ------------------------ | --------------------------------------------------------- |
+| `--color-*`       | `t.colors.*`             | `--color-red-500: #ef4444` → `t.colors['red-500']`        |
+| `--spacing-*`     | `t.theme.spacing.*`      | `--spacing-4: 16` → `t.theme.spacing['4']`                |
+| `--text-*`        | `t.theme.fontSize.*`     | `--text-sm: 14` → `t.theme.fontSize.sm`                   |
+| `--radius-*`      | `t.theme.borderRadius.*` | `--radius-lg: 12` → `t.theme.borderRadius.lg`             |
+| `--shadow-*`      | `t.theme.shadows.*`      | `--shadow-md: 0 4px 6px...` → `t.theme.shadows.md`        |
+| `--font-weight-*` | `t.theme.fontWeight.*`   | `--font-weight-bold: 700` → `t.theme.fontWeight.bold`     |
+| Color-like values | `t.colors.*`             | `--input: 220 13% 91%` → `t.colors.input` (auto-detected) |
+
+All extracted keys are included in the generated `stylefn.d.ts` type declarations, so you get **full TypeScript autocomplete** for every token imported from your CSS.
+
+> **Priority:** CSS-extracted tokens are merged at the lowest priority. Your `rn-stylefn.config.js` theme values always win.
+
+#### Using Tailwind CSS v4
+
+Tailwind v4 uses a CSS-first configuration approach with `@import "tailwindcss"`. When this import is detected, react-native-stylefn automatically runs the Tailwind CLI to compile all CSS variables into your token system.
+
+**Step 1:** Install Tailwind CSS
+
+```bash
+npm install -D tailwindcss
+```
+
+**Step 2:** Add the import to your `global.css`
+
+```css
+/* global.css */
+@import 'tailwindcss';
+
+/* Your custom overrides on top of Tailwind */
+@layer base {
+  :root {
+    --color-primary: oklch(0.65 0.19 258);
+    --color-background: #ffffff;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --color-primary: oklch(0.75 0.15 258);
+    --color-background: #0f172a;
+  }
+}
+```
+
+**What happens at build time:**
+
+1. Metro detects `@import "tailwindcss"` and runs the Tailwind CLI
+2. Tailwind generates all `--color-*`, `--text-*`, `--spacing-*`, `--radius-*`, `--shadow-*`, `--font-weight-*` variables
+3. All variables are extracted into your token system
+4. TypeScript declarations are generated with autocomplete for every token
+
+**Now use Tailwind's entire design system in React Native:**
+
+```tsx
+<View
+  style={(t) => ({
+    backgroundColor: t.colors['red-500'], // from Tailwind palette
+    padding: t.theme.spacing['4'], // from Tailwind spacing
+    borderRadius: t.theme.borderRadius.lg, // from --radius-lg
+    fontSize: t.theme.fontSize.sm, // from --text-sm
+  })}
+/>
+```
+
+#### Using Tailwind CSS v3
+
+With Tailwind v3, CSS variables aren't generated automatically by the framework. Instead, define your own CSS custom properties in `global.css` alongside the Tailwind directives:
+
+```css
+/* global.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+  }
+}
+```
+
+The `@tailwind` directives are safely ignored (stripped during parsing). Color-like values (bare HSL, hex, oklch, etc.) are auto-detected and promoted to `t.colors.*`.
+
+#### Using any external CSS
+
+Any CSS that defines custom properties works — just ensure variables are inside `:root` (light) or `.dark` (dark mode) selectors:
+
+```css
+/* global.css — using Open Props or any CSS framework */
+:root {
+  --color-brand: #3b82f6;
+  --spacing-page: 24;
+  --text-body: 16;
+  --radius-card: 12;
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+.dark {
+  --color-brand: #60a5fa;
+}
+```
+
+All of these become available as typed tokens:
+
+```tsx
+<View
+  style={(t) => ({
+    backgroundColor: t.colors.brand,
+    padding: t.theme.spacing.page,
+    fontSize: t.theme.fontSize.body,
+    borderRadius: t.theme.borderRadius.card,
+  })}
+/>
+```
+
+#### Supported color formats
+
+The auto-detection recognizes all modern CSS color formats:
+
+| Format                  | Example                   |
+| ----------------------- | ------------------------- |
+| Bare HSL (shadcn/ui)    | `220 13% 91%`             |
+| Hex                     | `#ef4444`, `#fff`         |
+| `hsl()` / `hsla()`      | `hsl(220, 13%, 91%)`      |
+| `rgb()` / `rgba()`      | `rgb(59, 130, 246)`       |
+| `oklch()` (Tailwind v4) | `oklch(0.65 0.19 258)`    |
+| `oklab()`               | `oklab(0.7 -0.05 -0.1)`   |
+| `lab()` / `lch()`       | `lab(50% 20 -30)`         |
+| `color()`               | `color(display-p3 1 0 0)` |
+
+---
+
 ## How It Works
 
 The library uses a **compile-time Babel transform** — no monkey-patching of `React.createElement` or `jsx`/`jsxs`:

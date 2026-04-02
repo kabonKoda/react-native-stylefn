@@ -1,5 +1,4 @@
 import type { ThemeConfig, StyleFnConfig, CSSVariables } from '../types';
-import { tailwindColors } from './tailwindColors';
 
 /**
  * Default theme tokens — sensible out-of-the-box values inspired by Tailwind.
@@ -55,10 +54,10 @@ export const defaultTheme: ThemeConfig = {
     xl: 768,
   },
   colors: {
-    // Full Tailwind v3 palette — available as t.colors['slate-50'], t.colors.white, etc.
-    // Users can override individual shades via theme.extend.colors in rn-stylefn.config.js.
-    ...tailwindColors,
-    // Semantic aliases (layered on top of the palette so they take precedence)
+    // Semantic color aliases — out-of-the-box defaults.
+    // For the full Tailwind color palette, install tailwindcss and
+    // add @import "tailwindcss" to your global.css. The --color-* vars
+    // it generates are auto-extracted into t.colors.* at build time.
     primary: '#3b82f6', // blue-500
     secondary: '#8b5cf6', // violet-500
     danger: '#ef4444', // red-500

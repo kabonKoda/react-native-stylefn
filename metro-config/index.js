@@ -223,6 +223,12 @@ function isColorLikeValue(value) {
   if (HEX_COLOR_RE.test(trimmed)) return true;
   if (/^hsla?\s*\(/i.test(trimmed)) return true;
   if (/^rgba?\s*\(/i.test(trimmed)) return true;
+  // Tailwind v4 / modern CSS color functions
+  if (/^oklch\s*\(/i.test(trimmed)) return true;
+  if (/^oklab\s*\(/i.test(trimmed)) return true;
+  if (/^lab\s*\(/i.test(trimmed)) return true;
+  if (/^lch\s*\(/i.test(trimmed)) return true;
+  if (/^color\s*\(/i.test(trimmed)) return true;
   return false;
 }
 
@@ -291,53 +297,6 @@ function toUnion(keys) {
 // for default keys even when they only use theme.extend.
 // =============================================================================
 
-// Full Tailwind v3 color palette — generated programmatically to match
-// tailwindColors.ts so the type generator always includes all shades.
-const TAILWIND_COLOR_FAMILIES = [
-  'slate',
-  'gray',
-  'zinc',
-  'neutral',
-  'stone',
-  'red',
-  'orange',
-  'amber',
-  'yellow',
-  'lime',
-  'green',
-  'emerald',
-  'teal',
-  'cyan',
-  'sky',
-  'blue',
-  'indigo',
-  'violet',
-  'purple',
-  'fuchsia',
-  'pink',
-  'rose',
-];
-const TAILWIND_SHADES = [
-  '50',
-  '100',
-  '200',
-  '300',
-  '400',
-  '500',
-  '600',
-  '700',
-  '800',
-  '900',
-  '950',
-];
-const TAILWIND_COLOR_KEYS = [
-  'white',
-  'black',
-  ...TAILWIND_COLOR_FAMILIES.flatMap((f) =>
-    TAILWIND_SHADES.map((s) => `${f}-${s}`)
-  ),
-];
-
 const DEFAULT_THEME_KEYS = {
   spacing: ['0', '1', '2', '3', '4', '5', '6', '8', '10', '12'],
   fontSize: ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl'],
@@ -345,15 +304,9 @@ const DEFAULT_THEME_KEYS = {
   fontWeight: ['normal', 'medium', 'semibold', 'bold'],
   opacity: ['0', '25', '50', '75', '100'],
   screens: ['sm', 'md', 'lg', 'xl'],
-  // Semantic defaults on top of the Tailwind palette
-  colors: [
-    ...TAILWIND_COLOR_KEYS,
-    'primary',
-    'secondary',
-    'danger',
-    'success',
-    'warning',
-  ],
+  // Semantic defaults only — Tailwind palette colors come from CSS vars
+  // when users install tailwindcss and add @import "tailwindcss" to their CSS.
+  colors: ['primary', 'secondary', 'danger', 'success', 'warning'],
   shadows: ['sm', 'md', 'lg'],
 };
 
@@ -437,7 +390,9 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     ];
 
     for (const key of allRawKeys) {
-      if (key.startsWith('text-') && !key.includes('--')) {
+      if (key === 'spacing' || key.startsWith('spacing-')) {
+        spacingKeys.push(key === 'spacing' ? 'DEFAULT' : key.slice(8));
+      } else if (key.startsWith('text-') && !key.includes('--')) {
         fontSizeKeys.push(key.slice(5));
       } else if (key === 'radius' || key.startsWith('radius-')) {
         borderRadiusKeys.push(key === 'radius' ? 'DEFAULT' : key.slice(7));
@@ -452,11 +407,11 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     }
 
     // Color keys:
-    // • ALWAYS include the full Tailwind palette so it shows in autocomplete
-    //   regardless of whether the user provides a theme.colors override.
+    // • Include built-in semantic defaults (primary, secondary, etc.)
     // • Merge user's theme.colors on top (flattened nested objects).
-    // • Only include CSS --color-* vars (not all raw vars like --ring, --radius,
-    //   --shadow-* which are NOT colors and must not appear in t.theme.colors).
+    // • Include CSS --color-* vars and auto-detected color-like variables.
+    // • For the full Tailwind palette, users install tailwindcss and add
+    //   @import "tailwindcss" — the --color-* vars are auto-extracted.
     // • Merge extend.colors last.
     const userColorKeys = theme.colors ? flattenColorKeys(theme.colors) : [];
     const extendColorKeys = extend.colors
@@ -477,9 +432,7 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     ];
 
     const allColorKeys = [
-      // Full Tailwind v3 palette — always available
-      ...TAILWIND_COLOR_KEYS,
-      // Semantic defaults
+      // Semantic defaults (built-in)
       'primary',
       'secondary',
       'danger',
