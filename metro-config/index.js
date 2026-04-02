@@ -499,11 +499,14 @@ const DEFAULT_THEME_KEYS = {
  * based on the built-in defaults, user's config, and CSS variables.
  * Written into node_modules/react-native-stylefn/.
  *
- * Key merge strategy (matches runtime resolveTheme behavior):
- * - If user provides a top-level theme section (e.g. theme.spacing),
- *   it REPLACES defaults for that section (only user keys are used).
- * - If user only uses theme.extend, defaults are preserved and
- *   extended keys are added on top.
+ * Key merge strategy for type declarations:
+ * All layers are MERGED so every possible key appears in the union type.
+ * Priority order (lowest → highest, but all keys appear for autocomplete):
+ *   1. defaults.ts keys (always present)
+ *   2. Tailwind defaults (if @tailwind base in global.css)
+ *   3. User's theme sections from rn-stylefn.config.js
+ *   4. CSS variable keys from global.css
+ *   5. theme.extend keys (additive)
  */
 function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
   try {
@@ -518,22 +521,27 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     const theme = userConfig.theme || {};
     const extend = theme.extend || {};
 
-    // Helper: resolve keys for a section with Tailwind-like merge semantics.
-    // If the user provides a top-level section, it REPLACES defaults.
-    // Extend always adds on top (of either defaults or the user's override).
+    // Helper: merge keys from all layers for type declarations.
+    // All keys from every layer appear in the union so autocomplete works.
+    // Order: defaults → Tailwind → user config → extend
     function resolveKeys(sectionName, defaultKeys) {
       const userSection = theme[sectionName];
       const extendSection = extend[sectionName];
 
-      // Start with defaults, unless user provided a top-level override (which replaces)
-      let baseKeys = userSection ? Object.keys(userSection) : [...defaultKeys];
+      // Always start with defaults (includes Tailwind defaults if opted in)
+      let allKeys = [...defaultKeys];
+
+      // Merge user's top-level config keys on top
+      if (userSection) {
+        allKeys.push(...Object.keys(userSection));
+      }
 
       // Merge extend keys on top
       if (extendSection) {
-        baseKeys = [...baseKeys, ...Object.keys(extendSection)];
+        allKeys.push(...Object.keys(extendSection));
       }
 
-      return baseKeys;
+      return allKeys;
     }
 
     // Only enrich with Tailwind defaults when the user opted in via @tailwind
@@ -564,19 +572,24 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
     const opacityKeys = resolveKeys('opacity', enrichedDefaults('opacity'));
     const screenKeys = resolveKeys('screens', enrichedDefaults('screens'));
 
-    // Shadow keys: from both shadows and boxShadow (merge all sources)
+    // Shadow keys: merge all layers (defaults → Tailwind → user → extend)
     const twShadowKeys = twDefaults?.shadows
       ? Object.keys(twDefaults.shadows)
       : [];
     const userShadowKeys =
       theme.shadows || theme.boxShadow
         ? Object.keys({ ...theme.shadows, ...theme.boxShadow })
-        : [...DEFAULT_THEME_KEYS.shadows, ...twShadowKeys];
+        : [];
     const extendShadowKeys = Object.keys({
       ...extend.shadows,
       ...extend.boxShadow,
     });
-    const shadowKeys = [...userShadowKeys, ...extendShadowKeys];
+    const shadowKeys = [
+      ...DEFAULT_THEME_KEYS.shadows,
+      ...twShadowKeys,
+      ...userShadowKeys,
+      ...extendShadowKeys,
+    ];
 
     // -----------------------------------------------------------------------
     // Auto-extract well-known CSS variable prefixes from rawVars (for types).

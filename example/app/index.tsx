@@ -1253,7 +1253,7 @@ function UseLayoutDemo() {
           style={(t) => ({
             backgroundColor: t.dark ? '#1e293b' : '#f1f5f9',
             borderRadius: t.theme.borderRadius.md,
-            padding: t.theme.spacing[3],
+            opacity: t.theme.opacity[5],
             minHeight: 120,
           })}
         >
