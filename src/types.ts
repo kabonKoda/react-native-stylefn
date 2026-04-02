@@ -71,22 +71,36 @@ export interface ThemeKeyRegistry {
 }
 
 /**
- * Color key with optional `/opacity` suffix for the colors Proxy.
+ * Color key with optional scheme and/or opacity suffix for `t.colors`.
  *
- * Generates template literal types like `'primary/50'`, `'muted/10'`, etc.
- * so that `t.colors['primary/50']` gets full autocomplete.
+ * The proxy understands these formats:
+ *
+ * ```
+ * colorKey                  plain color (current scheme)
+ * colorKey/opacity          current-scheme color at N% opacity  ← backward compat
+ * colorKey/light            always use the light-scheme value
+ * colorKey/dark             always use the dark-scheme value
+ * colorKey/light/opacity    light-scheme color at N% opacity
+ * colorKey/dark/opacity     dark-scheme color at N% opacity
+ * ```
  *
  * @example
  * ```tsx
- * t.colors.primary          // plain color
- * t.colors['primary/50']    // primary at 50% opacity
- * t.colors['muted/10']      // muted at 10% opacity
- * t.colors['border/0.2']    // border at 20% opacity (fraction)
+ * t.colors.primary                 // current scheme
+ * t.colors['primary/50']           // current scheme at 50% opacity
+ * t.colors['background/dark']      // always dark-scheme background
+ * t.colors['surface/light']        // always light-scheme surface
+ * t.colors['primary/dark/50']      // dark-scheme primary at 50% opacity
+ * t.colors['text/light/75']        // light-scheme text at 75% opacity
  * ```
  */
 type ColorKeyWithOpacity =
   | ThemeKeyRegistry['color']
-  | `${ThemeKeyRegistry['color']}/${ThemeKeyRegistry['opacity']}`;
+  | `${ThemeKeyRegistry['color']}/${ThemeKeyRegistry['opacity']}`
+  | `${ThemeKeyRegistry['color']}/light`
+  | `${ThemeKeyRegistry['color']}/dark`
+  | `${ThemeKeyRegistry['color']}/light/${ThemeKeyRegistry['opacity']}`
+  | `${ThemeKeyRegistry['color']}/dark/${ThemeKeyRegistry['opacity']}`;
 
 /**
  * Helper type: provides autocomplete for known keys K while allowing any string.
@@ -585,6 +599,7 @@ export type RNStyle = ViewStyle | TextStyle | ImageStyle;
  * - Viewport width: `"50vw"` → pixels
  * - Viewport height: `"100vh"` → pixels
  * - Rem units: `"1rem"` → pixels (based on configured inlineRem)
+ * - CSS keywords: `"none"` (e.g. `outlineStyle: 'none'` on web)
  *
  * These are valid in style function return types because the Babel plugin
  * wraps them with `__resolveStyle()` which converts them before React Native
@@ -599,7 +614,8 @@ export type StyleFnDimension =
   | 'full'
   | 'screen'
   | 'auto'
-  | 'fit-content';
+  | 'fit-content'
+  | 'none';
 
 /**
  * Loosens a style type to also accept `StyleFnDimension` custom strings

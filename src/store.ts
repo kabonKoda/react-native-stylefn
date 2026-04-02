@@ -13,10 +13,18 @@ import { alpha, createColorsProxy } from './tokens/alpha';
  * 1. Default CSS color variables (built-in fallbacks)
  * 2. Default theme colors (from defaultTheme)
  */
-const fallbackColors: Record<string, string> = {
+const fallbackLightColors: Record<string, string> = {
   ...defaultCSSVariables.light,
   ...(defaultTheme.colors as Record<string, string>),
 };
+
+const fallbackDarkColors: Record<string, string> = {
+  ...defaultCSSVariables.dark,
+  ...(defaultTheme.colors as Record<string, string>),
+};
+
+// The static fallback starts in light mode
+const fallbackColors = fallbackLightColors;
 
 const fallbackScreen = { width: 375, height: 812, scale: 2, fontScale: 1 };
 
@@ -32,7 +40,11 @@ const fallbackTokens: StyleTokens = {
     shadows: defaultTheme.shadows ?? {},
     opacity: defaultTheme.opacity,
   } as StyleTokens['theme'],
-  colors: createColorsProxy(fallbackColors) as StyleTokens['colors'],
+  colors: createColorsProxy(
+    fallbackColors,
+    fallbackLightColors,
+    fallbackDarkColors
+  ) as StyleTokens['colors'],
   dark: false,
   colorScheme: 'light',
   breakpoint: createBreakpointQuery(fallbackScreen.width, defaultTheme.screens),

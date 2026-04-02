@@ -66,33 +66,55 @@ export function alpha(color: string, opacity: number): string {
 }
 
 // =============================================================================
-// t.colors Proxy — `/opacity` suffix support
+// t.colors Proxy — `/opacity`, `/light`, `/dark`, and `/light|dark/opacity`
 // =============================================================================
 
 /**
- * Wraps a resolved colors map in a `Proxy` that intercepts any key containing
- * a `/opacity` suffix and automatically applies the alpha helper.
+ * Wraps a resolved colors map in a `Proxy` that handles four key formats:
  *
- * This mirrors Tailwind's `/opacity` modifier at runtime:
- *
- * ```tsx
- * t.colors['primary/10']          // primary at 10%
- * t.colors['muted-foreground/30'] // muted-foreground at 30%
- * t.colors['yellow-900/50']       // yellow-900 at 50%
- * t.colors['border/20']           // border at 20%
+ * ```
+ * colorKey                    plain color (current scheme)
+ * colorKey/opacity            current-scheme color at N% opacity   ← backward compat
+ * colorKey/light              light-scheme color, regardless of current scheme
+ * colorKey/dark               dark-scheme color, regardless of current scheme
+ * colorKey/light/opacity      light-scheme color at N% opacity
+ * colorKey/dark/opacity       dark-scheme color at N% opacity
  * ```
  *
- * Keys without a `/` pass through unchanged — full backward compatibility.
+ * **Scheme variants** let you hard-code a color to always come from a
+ * specific palette — useful for UI elements that must look a certain way
+ * independent of the device's color scheme:
  *
- * The opacity value after `/` follows the same rules as `alpha()`:
- *   - `0–1`    → fraction (e.g. `primary/0.5`)
- *   - `2–100`  → percentage (e.g. `primary/50`, `primary/10`)
+ * ```tsx
+ * // Always dark-mode background (e.g. for a dark overlay on a light screen)
+ * t.colors['background/dark']
  *
- * @param colors Plain resolved colors map.
- * @returns A Proxy that resolves `/opacity` keys on the fly.
+ * // Always light-mode surface (e.g. for a card that stays light in dark mode)
+ * t.colors['surface/light']
+ *
+ * // Dark-mode primary color at 50% opacity
+ * t.colors['primary/dark/50']
+ *
+ * // Light-mode text at 75% opacity
+ * t.colors['text/light/75']
+ * ```
+ *
+ * **Opacity rules** (same as `alpha()`):
+ *   - `0–1`   treated as a fraction  (`/0.5` → 50%)
+ *   - `2–100` treated as a percentage (`/50`  → 50%)
+ *
+ * When `lightColors` / `darkColors` are not provided (backward-compat call
+ * sites) the proxy falls back to the current-scheme map.
+ *
+ * @param colors      Resolved color map for the **current** color scheme.
+ * @param lightColors Resolved color map for the **light** scheme (optional).
+ * @param darkColors  Resolved color map for the **dark** scheme (optional).
+ * @returns A Proxy that resolves the key formats above on the fly.
  */
 export function createColorsProxy(
-  colors: Record<string, string>
+  colors: Record<string, string>,
+  lightColors?: Record<string, string>,
+  darkColors?: Record<string, string>
 ): Record<string, string> {
   return new Proxy(colors, {
     get(target, prop: string | symbol) {
@@ -100,23 +122,68 @@ export function createColorsProxy(
         return (target as Record<string | symbol, string>)[prop];
       }
 
-      // Fast path — no slash, no Tailwind opacity suffix
-      const slashIdx = prop.lastIndexOf('/');
-      if (slashIdx === -1) {
+      // Fast path — no slash, nothing to parse
+      if (prop.indexOf('/') === -1) {
         return target[prop];
       }
 
-      const colorKey = prop.slice(0, slashIdx);
-      const opacityStr = prop.slice(slashIdx + 1);
-      const opacity = parseFloat(opacityStr);
+      // Split into at most 3 parts on '/'
+      // We only support exactly 2 or 3 segments beyond the fast path.
+      // Color keys never contain '/' (CSS variable names use '-' separators).
+      const firstSlash = prop.indexOf('/');
+      const colorKey = prop.slice(0, firstSlash);
+      const rest = prop.slice(firstSlash + 1); // everything after the first '/'
 
-      // Only activate when the base key exists and opacity is a valid number
-      if (!isNaN(opacity) && colorKey in target) {
-        return alpha(target[colorKey]!, opacity);
+      const secondSlash = rest.indexOf('/');
+
+      let scheme: 'light' | 'dark' | null = null;
+      let opacity: number | null = null;
+
+      if (secondSlash === -1) {
+        // ── Two-segment key: colorKey/X ───────────────────────────────────────
+        // X is either a scheme name ('light'|'dark') or a numeric opacity.
+        if (rest === 'light' || rest === 'dark') {
+          scheme = rest;
+        } else {
+          const num = parseFloat(rest);
+          if (!isNaN(num)) {
+            opacity = num; // backward-compat: colorKey/opacity
+          } else {
+            return target[prop]; // unknown format — fall through
+          }
+        }
+      } else {
+        // ── Three-segment key: colorKey/scheme/opacity ────────────────────────
+        const schemePart = rest.slice(0, secondSlash);
+        const opacityPart = rest.slice(secondSlash + 1);
+
+        if (schemePart !== 'light' && schemePart !== 'dark') {
+          return target[prop]; // unknown format — fall through
+        }
+        const num = parseFloat(opacityPart);
+        if (isNaN(num)) {
+          return target[prop]; // opacity part isn't numeric — fall through
+        }
+
+        scheme = schemePart;
+        opacity = num;
       }
 
-      // Fall through for unknown keys (e.g. 'some-unknown-key/30')
-      return target[prop];
+      // ── Select the correct color map ─────────────────────────────────────────
+      const colorMap: Record<string, string> =
+        scheme === 'light'
+          ? lightColors ?? target
+          : scheme === 'dark'
+          ? darkColors ?? target
+          : target;
+
+      if (!(colorKey in colorMap)) {
+        return target[prop]; // color key not found — fall through
+      }
+
+      const baseColor = colorMap[colorKey]!;
+
+      return opacity !== null ? alpha(baseColor, opacity) : baseColor;
     },
   });
 }

@@ -1,4 +1,9 @@
-import type { StyleTokens, TokenResolverParams, ThemeConfig } from '../types';
+import type {
+  StyleTokens,
+  TokenResolverParams,
+  ThemeConfig,
+  CSSVariables,
+} from '../types';
 import { resolveTheme } from '../config/resolver';
 import { defaultCSSVariables } from '../config/defaults';
 import { getCustomTokens } from '../store';
@@ -109,6 +114,42 @@ function extractFontWeightVars(
   return result;
 }
 
+// =============================================================================
+// Per-scheme color map builder
+// =============================================================================
+
+/**
+ * Builds the fully merged color map for a given color scheme.
+ *
+ * Merge priority (lowest → highest):
+ *   1. Default CSS color variables (built-in fallbacks)
+ *   2. Auto-detected color vars from raw CSS (bare HSL, hex, etc.)
+ *   3. Resolved theme colors (from config, including hsl(var(…)) expressions)
+ *   4. User's --color-* CSS variables (explicit overrides from global.css)
+ *
+ * This is the same logic used for the active scheme inside `resolveTokens`,
+ * extracted so we can build both light and dark maps cheaply.
+ */
+function buildColorsForScheme(
+  scheme: 'light' | 'dark',
+  cssVars: CSSVariables,
+  themeColors: ThemeConfig['colors']
+): Record<string, string> {
+  const rawVars = getRawVarsForScheme(cssVars, scheme);
+  const resolvedThemeColors = resolveColorMap(themeColors, rawVars);
+  const autoDetected = autoDetectColorVars(rawVars);
+  const defaultColors =
+    scheme === 'dark' ? defaultCSSVariables.dark : defaultCSSVariables.light;
+  const cssColorVars = scheme === 'dark' ? cssVars.dark : cssVars.light;
+
+  return {
+    ...defaultColors,
+    ...autoDetected,
+    ...resolvedThemeColors,
+    ...cssColorVars,
+  };
+}
+
 /**
  * Assembles the full StyleTokens object from all device/system state + config.
  *
@@ -181,6 +222,19 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
     ...cssColorVars,
   };
 
+  // ── Build both light and dark color maps for forced-scheme access ───────────
+  // e.g.  t.colors['background/dark']    → always dark-scheme background
+  //       t.colors['primary/light/50']   → light-scheme primary at 50% opacity
+  //
+  // Reuse the already-computed `colors` for the active scheme to avoid
+  // redundant work; only compute the opposite scheme's map from scratch.
+  const lightColors: Record<string, string> = dark
+    ? buildColorsForScheme('light', cssVars, theme.colors)
+    : colors;
+  const darkColors: Record<string, string> = dark
+    ? colors
+    : buildColorsForScheme('dark', cssVars, theme.colors);
+
   // Resolve shadows — supports string values, var() references, and boxShadow alias.
   // Merge both `shadows` and `boxShadow` (Tailwind-compatible alias) so users can
   // use either key in their config. boxShadow takes priority for same-named keys.
@@ -229,7 +283,11 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
       opacity: { ...tw?.opacity, ...resolvedOpacity },
       ...(resolvedBorderWidth ? { borderWidth: resolvedBorderWidth } : {}),
     } as StyleTokens['theme'],
-    colors: createColorsProxy(colors) as StyleTokens['colors'],
+    colors: createColorsProxy(
+      colors,
+      lightColors,
+      darkColors
+    ) as StyleTokens['colors'],
     dark,
     colorScheme,
     breakpoint: createBreakpointQuery(screenWidth, theme.screens),
