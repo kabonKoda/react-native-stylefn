@@ -206,18 +206,27 @@ export function resolveTokens(params: TokenResolverParams): StyleTokens {
   const cssShadows = extractShadowVars(rawVars);
   const cssFontWeight = extractFontWeightVars(rawVars);
 
+  // Tailwind defaults loaded from tailwindcss/defaultTheme at build time
+  // (injected into the virtual module by metro-config). Merged at LOWEST priority.
+  const tw = cssVars.tailwindDefaults;
+
   return {
     theme: {
       // Merge priority (lowest → highest):
+      // 0. Tailwind defaults (from tailwindcss/defaultTheme, if installed)
       // 1. Auto-extracted CSS vars (--spacing-*, --text-*, --radius-*, --shadow-*, --font-weight-*)
       // 2. Resolved config values (from rn-stylefn.config.js + defaults)
-      spacing: { ...cssSpacing, ...resolvedSpacing },
-      fontSize: { ...cssFontSize, ...resolvedFontSize },
-      borderRadius: { ...cssBorderRadius, ...resolvedBorderRadius },
-      fontWeight: { ...cssFontWeight, ...theme.fontWeight },
+      spacing: { ...tw?.spacing, ...cssSpacing, ...resolvedSpacing },
+      fontSize: { ...tw?.fontSize, ...cssFontSize, ...resolvedFontSize },
+      borderRadius: {
+        ...tw?.borderRadius,
+        ...cssBorderRadius,
+        ...resolvedBorderRadius,
+      },
+      fontWeight: { ...tw?.fontWeight, ...cssFontWeight, ...theme.fontWeight },
       colors,
-      shadows: { ...cssShadows, ...resolvedShadows },
-      opacity: resolvedOpacity,
+      shadows: { ...tw?.shadows, ...cssShadows, ...resolvedShadows },
+      opacity: { ...tw?.opacity, ...resolvedOpacity },
       ...(resolvedBorderWidth ? { borderWidth: resolvedBorderWidth } : {}),
     } as StyleTokens['theme'],
     colors: createColorsProxy(colors) as StyleTokens['colors'],

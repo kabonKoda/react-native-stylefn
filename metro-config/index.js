@@ -71,8 +71,11 @@ function unwrapAtLayerBlocks(css) {
  * Falls back gracefully if tailwindcss is not installed.
  */
 function expandTailwindImports(cssContent, cssPath, projectRoot) {
-  // Only run when there's a Tailwind import
-  if (!/@import\s+['"]tailwindcss['"]/m.test(cssContent)) return cssContent;
+  // Only run when there's a Tailwind import (strip comments first to avoid
+  // matching @import "tailwindcss" inside documentation comments)
+  const withoutComments = cssContent.replace(/\/\*[\s\S]*?\*\//g, '');
+  if (!/@import\s+['"]tailwindcss['"]/m.test(withoutComments))
+    return cssContent;
 
   console.log(
     '[react-native-stylefn] Found @import "tailwindcss" — running Tailwind compiler...'
@@ -350,6 +353,135 @@ function loadTailwindPalette(projectRoot) {
   }
 }
 
+/**
+ * Load the full Tailwind default theme (spacing, fontSize, fontWeight,
+ * borderRadius, opacity, boxShadow) from `tailwindcss/defaultTheme`.
+ * Converts rem/px string values to pixel numbers for React Native.
+ *
+ * Returns an object with RN-ready theme sections, or empty if tailwindcss
+ * is not installed.
+ */
+function loadTailwindDefaults(projectRoot, inlineRem = 16) {
+  try {
+    const themePath = require.resolve('tailwindcss/defaultTheme', {
+      paths: [projectRoot],
+    });
+    const origWarn = console.warn;
+    console.warn = () => {};
+    let dt;
+    try {
+      dt = require(themePath);
+    } finally {
+      console.warn = origWarn;
+    }
+
+    // Convert a CSS dimension string to a pixel number
+    function toPx(val) {
+      if (typeof val === 'number') return val;
+      if (typeof val !== 'string') return NaN;
+      const trimmed = val.trim();
+      if (trimmed.endsWith('rem')) return parseFloat(trimmed) * inlineRem;
+      if (trimmed.endsWith('px')) return parseFloat(trimmed);
+      const n = parseFloat(trimmed);
+      return isNaN(n) ? NaN : n;
+    }
+
+    // spacing: { '0': '0px', '1': '0.25rem', ... } → { '0': 0, '1': 4, ... }
+    const spacing = {};
+    if (dt.spacing) {
+      for (const [k, v] of Object.entries(dt.spacing)) {
+        const n = toPx(v);
+        if (!isNaN(n)) spacing[k] = n;
+      }
+    }
+
+    // fontSize: { 'sm': ['0.875rem', { lineHeight: '1.25rem' }], ... } → { 'sm': 14, ... }
+    const fontSize = {};
+    if (dt.fontSize) {
+      for (const [k, v] of Object.entries(dt.fontSize)) {
+        const raw = Array.isArray(v) ? v[0] : v;
+        const n = toPx(raw);
+        if (!isNaN(n) && n > 0) fontSize[k] = n;
+      }
+    }
+
+    // fontWeight: { thin: '100', ... } → kept as-is (string values)
+    const fontWeight = dt.fontWeight || {};
+
+    // borderRadius: { 'sm': '0.125rem', ... } → { 'sm': 2, ... }
+    const borderRadius = {};
+    if (dt.borderRadius) {
+      for (const [k, v] of Object.entries(dt.borderRadius)) {
+        const n = toPx(v);
+        if (!isNaN(n)) borderRadius[k] = n;
+      }
+    }
+
+    // opacity: { '0': '0', '5': '0.05', ... } → { '0': 0, '5': 0.05, ... }
+    const opacity = {};
+    if (dt.opacity) {
+      for (const [k, v] of Object.entries(dt.opacity)) {
+        const n = parseFloat(v);
+        if (!isNaN(n)) opacity[k] = n;
+      }
+    }
+
+    // boxShadow: { sm: '...', DEFAULT: '...', ... } → kept as-is for shadow parsing
+    const shadows = {};
+    if (dt.boxShadow) {
+      for (const [k, v] of Object.entries(dt.boxShadow)) {
+        if (v && v !== 'none') shadows[k === 'DEFAULT' ? 'DEFAULT' : k] = v;
+      }
+    }
+
+    // screens: { sm: '640px', ... } → { sm: 640, ... }
+    const screens = {};
+    if (dt.screens) {
+      for (const [k, v] of Object.entries(dt.screens)) {
+        if (typeof v === 'string') {
+          const n = parseInt(v, 10);
+          if (!isNaN(n)) screens[k] = n;
+        }
+      }
+    }
+
+    const sectionCount =
+      Object.keys(spacing).length +
+      Object.keys(fontSize).length +
+      Object.keys(fontWeight).length +
+      Object.keys(borderRadius).length +
+      Object.keys(opacity).length +
+      Object.keys(shadows).length;
+
+    if (sectionCount > 0) {
+      console.log(
+        `[react-native-stylefn] ✓ Loaded Tailwind defaults from tailwindcss/defaultTheme ` +
+          `(${Object.keys(spacing).length} spacing, ${
+            Object.keys(fontSize).length
+          } fontSize, ` +
+          `${Object.keys(fontWeight).length} fontWeight, ${
+            Object.keys(borderRadius).length
+          } borderRadius, ` +
+          `${Object.keys(opacity).length} opacity, ${
+            Object.keys(shadows).length
+          } shadows)`
+      );
+    }
+
+    return {
+      spacing,
+      fontSize,
+      fontWeight,
+      borderRadius,
+      opacity,
+      shadows,
+      screens,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const DEFAULT_THEME_KEYS = {
   spacing: ['0', '1', '2', '3', '4', '5', '6', '8', '10', '12'],
   fontSize: ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl'],
@@ -404,25 +536,42 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
       return baseKeys;
     }
 
-    // Extract keys from each theme section (defaults + user overrides + extend)
-    const spacingKeys = resolveKeys('spacing', DEFAULT_THEME_KEYS.spacing);
-    const fontSizeKeys = resolveKeys('fontSize', DEFAULT_THEME_KEYS.fontSize);
+    // Only enrich with Tailwind defaults when the user opted in via @tailwind
+    // directives in their CSS. parsedCss.tailwindDefaults is only set when
+    // @tailwind base/utilities or @import "tailwindcss" is present.
+    const twDefaults = parsedCss.tailwindDefaults || null;
+
+    // Merge default keys with Tailwind defaults (only when opted in)
+    function enrichedDefaults(section) {
+      const base = [...DEFAULT_THEME_KEYS[section]];
+      if (twDefaults && twDefaults[section]) {
+        base.push(...Object.keys(twDefaults[section]));
+      }
+      return base;
+    }
+
+    // Extract keys from each theme section (defaults + TW defaults + user overrides + extend)
+    const spacingKeys = resolveKeys('spacing', enrichedDefaults('spacing'));
+    const fontSizeKeys = resolveKeys('fontSize', enrichedDefaults('fontSize'));
     const borderRadiusKeys = resolveKeys(
       'borderRadius',
-      DEFAULT_THEME_KEYS.borderRadius
+      enrichedDefaults('borderRadius')
     );
     const fontWeightKeys = resolveKeys(
       'fontWeight',
-      DEFAULT_THEME_KEYS.fontWeight
+      enrichedDefaults('fontWeight')
     );
-    const opacityKeys = resolveKeys('opacity', DEFAULT_THEME_KEYS.opacity);
-    const screenKeys = resolveKeys('screens', DEFAULT_THEME_KEYS.screens);
+    const opacityKeys = resolveKeys('opacity', enrichedDefaults('opacity'));
+    const screenKeys = resolveKeys('screens', enrichedDefaults('screens'));
 
     // Shadow keys: from both shadows and boxShadow (merge all sources)
+    const twShadowKeys = twDefaults?.shadows
+      ? Object.keys(twDefaults.shadows)
+      : [];
     const userShadowKeys =
       theme.shadows || theme.boxShadow
         ? Object.keys({ ...theme.shadows, ...theme.boxShadow })
-        : [...DEFAULT_THEME_KEYS.shadows];
+        : [...DEFAULT_THEME_KEYS.shadows, ...twShadowKeys];
     const extendShadowKeys = Object.keys({
       ...extend.shadows,
       ...extend.boxShadow,
@@ -483,11 +632,13 @@ function generateTypeDeclarations(configFilePath, parsedCss, projectRoot) {
       ...autoDetectColorKeys(parsedCss.rawVars?.dark || {}),
     ];
 
-    // Dynamically load Tailwind palette keys from tailwindcss/colors
-    const twPalette = loadTailwindPalette(projectRoot);
+    // Dynamically load Tailwind palette keys only when opted in via CSS directives
+    const twPalette = twDefaults
+      ? loadTailwindPalette(projectRoot)
+      : { flat: {}, keys: [] };
 
     const allColorKeys = [
-      // Tailwind palette (loaded from tailwindcss/colors if installed)
+      // Tailwind palette (only when @tailwind directives are in global.css)
       ...twPalette.keys,
       // Semantic defaults (built-in)
       'primary',
@@ -672,34 +823,56 @@ function withStyleFn(config, options = {}) {
 
   // Parse the CSS file
   let parsedCss = { light: {}, dark: {}, rawVars: { light: {}, dark: {} } };
+  // Track which @tailwind directives the user opted into (CSS = opt-in signal)
+  let hasTailwindBase = false;
+  let hasTailwindUtilities = false;
+  let hasTailwindImport = false;
+
   if (fs.existsSync(cssPath)) {
     try {
       // Read the raw CSS first
       let cssContent = fs.readFileSync(cssPath, 'utf8');
 
-      // If the CSS contains @import "tailwindcss", process it through the
-      // Tailwind CLI so all generated --color-* variables are available.
+      // Strip comments before detecting directives, so documentation
+      // comments like `*   @import "tailwindcss"` don't trigger loading.
+      const cssWithoutComments = cssContent.replace(/\/\*[\s\S]*?\*\//g, '');
+
+      // Detect @tailwind directives BEFORE stripping them from CSS.
+      // These act as opt-in signals: if present, we load the corresponding
+      // Tailwind defaults from the installed tailwindcss package.
+      hasTailwindBase = /@tailwind\s+base\s*;/m.test(cssWithoutComments);
+      hasTailwindUtilities = /@tailwind\s+utilities\s*;/m.test(
+        cssWithoutComments
+      );
+      hasTailwindImport = /@import\s+['"]tailwindcss['"]/m.test(
+        cssWithoutComments
+      );
+
+      // If the CSS contains @import "tailwindcss" (Tailwind v4 CSS-first),
+      // process it through the Tailwind CLI so all generated --color-*
+      // variables are available.
       cssContent = expandTailwindImports(cssContent, cssPath, projectRoot);
 
       parsedCss = parseCSSVariables(cssContent);
 
-      // If @tailwind directives are in the CSS (v3) or tailwindcss is installed,
-      // load the color palette from tailwindcss/colors and inject into parsedCss.light
-      // as lowest-priority color values (user CSS vars always win).
-      const twPalette = loadTailwindPalette(projectRoot);
-      if (twPalette.keys.length > 0) {
-        // Inject as lowest priority — don't overwrite existing CSS-defined colors
-        const injected = { ...twPalette.flat, ...parsedCss.light };
-        parsedCss.light = injected;
-        // Also inject the --color-* prefixed versions into rawVars for expression resolution
-        for (const [key, val] of Object.entries(twPalette.flat)) {
-          if (!parsedCss.rawVars.light[`color-${key}`]) {
-            parsedCss.rawVars.light[`color-${key}`] = val;
+      // Load Tailwind color palette ONLY when the user opted in via
+      // @tailwind base, @tailwind utilities, or @import "tailwindcss"
+      if (hasTailwindBase || hasTailwindUtilities || hasTailwindImport) {
+        const twPalette = loadTailwindPalette(projectRoot);
+        if (twPalette.keys.length > 0) {
+          // Inject as lowest priority — don't overwrite existing CSS-defined colors
+          const injected = { ...twPalette.flat, ...parsedCss.light };
+          parsedCss.light = injected;
+          // Also inject the --color-* prefixed versions into rawVars for expression resolution
+          for (const [key, val] of Object.entries(twPalette.flat)) {
+            if (!parsedCss.rawVars.light[`color-${key}`]) {
+              parsedCss.rawVars.light[`color-${key}`] = val;
+            }
           }
+          console.log(
+            `[react-native-stylefn] ✓ Loaded ${twPalette.keys.length} Tailwind palette colors from tailwindcss/colors`
+          );
         }
-        console.log(
-          `[react-native-stylefn] ✓ Loaded ${twPalette.keys.length} Tailwind palette colors from tailwindcss/colors`
-        );
       }
 
       const lightColorCount = Object.keys(parsedCss.light).length;
@@ -757,6 +930,19 @@ function withStyleFn(config, options = {}) {
   }
   parsedCss.light = inlineRemValues(parsedCss.light);
   parsedCss.dark = inlineRemValues(parsedCss.dark);
+
+  // Load full Tailwind defaults ONLY when the user opted in via @tailwind
+  // directives in global.css. The CSS file is the opt-in signal.
+  //   @tailwind base;       → load spacing, fontSize, fontWeight, borderRadius,
+  //                            opacity, shadows, colors from tailwindcss
+  //   @tailwind utilities;  → also triggers loading (utilities depend on theme)
+  //   @import "tailwindcss" → Tailwind v4 (loads everything)
+  if (hasTailwindBase || hasTailwindUtilities || hasTailwindImport) {
+    const twDefaults = loadTailwindDefaults(projectRoot, inlineRem);
+    if (twDefaults) {
+      parsedCss.tailwindDefaults = twDefaults;
+    }
+  }
 
   // Attach the inlineRem value so the runtime can use it for calc()/rem() support
   parsedCss.inlineRem = inlineRem;

@@ -1264,7 +1264,7 @@ function UseLayoutDemo() {
                 style={(t) => ({
                   fontSize: t.theme.fontSize.sm,
                   fontWeight: t.theme.fontWeight.semibold,
-                  color: t.colors.text,
+                  color: t.colors['text-muted'],
                   marginBottom: t.theme.spacing[2],
                 })}
               >

@@ -3,10 +3,17 @@
  *
  * Two naming conventions are supported:
  *
- * 1. --color-<name>  → Available as t.colors.<name> (backward compat)
- * 2. --<name>        → Available for var(--<name>) resolution in config
+ * 1. --color-<name>  → Available as t.colors.<name>
+ * 2. --<name>        → Available for var(--<name>) resolution and auto-detected
  *
- * Both are stored in rawVars for CSS expression resolution.
+ * @tailwind directives opt-in to loading Tailwind defaults from the installed
+ * tailwindcss package:
+ *   @tailwind base;       → loads spacing, fontSize, fontWeight, borderRadius,
+ *                            opacity, shadows, and the full color palette
+ *   @tailwind utilities;  → same (utilities depend on the theme)
+ *   @import "tailwindcss" → Tailwind v4 CSS-first (loads everything)
+ *
+ * Without @tailwind directives, only defaults.ts values are used.
  * ============================================================================= */
 @tailwind base;
 @tailwind components;
@@ -14,7 +21,7 @@
 
 @layer base {
   :root {
-    /* ---- Color palette (--color-* → t.colors.*) ---- */
+    /* ---- Semantic colors (--color-* → t.colors.*) ---- */
     --color-background: #ffffff;
     --color-surface: #f5f5f5;
     --color-border: #e5e7eb;
@@ -22,7 +29,7 @@
     --color-text-muted: #6b7280;
     --color-primary: #000000;
 
-    /* ---- HSL color values (for var() resolution in config) ---- */
+    /* ---- HSL color values (shadcn/ui convention — auto-detected as colors) ---- */
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 224 71% 51%;

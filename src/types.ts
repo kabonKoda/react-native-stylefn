@@ -139,6 +139,17 @@ export interface CSSVariables {
   };
   /** Base pixel value for rem→px conversion (default 16). Set via withStyleFn({ inlineRem }) in metro.config.js. */
   inlineRem?: number;
+  /** Tailwind default theme values (loaded from tailwindcss/defaultTheme at build time).
+   *  Merged at lowest priority — user config and CSS vars always win. */
+  tailwindDefaults?: {
+    spacing?: Record<string, number>;
+    fontSize?: Record<string, number>;
+    fontWeight?: Record<string, string>;
+    borderRadius?: Record<string, number>;
+    opacity?: Record<string, number>;
+    shadows?: Record<string, string>;
+    screens?: Record<string, number>;
+  };
 }
 
 /**
