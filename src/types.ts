@@ -71,6 +71,24 @@ export interface ThemeKeyRegistry {
 }
 
 /**
+ * Color key with optional `/opacity` suffix for the colors Proxy.
+ *
+ * Generates template literal types like `'primary/50'`, `'muted/10'`, etc.
+ * so that `t.colors['primary/50']` gets full autocomplete.
+ *
+ * @example
+ * ```tsx
+ * t.colors.primary          // plain color
+ * t.colors['primary/50']    // primary at 50% opacity
+ * t.colors['muted/10']      // muted at 10% opacity
+ * t.colors['border/0.2']    // border at 20% opacity (fraction)
+ * ```
+ */
+type ColorKeyWithOpacity =
+  | ThemeKeyRegistry['color']
+  | `${ThemeKeyRegistry['color']}/${ThemeKeyRegistry['opacity']}`;
+
+/**
  * Helper type: provides autocomplete for known keys K while allowing any string.
  * The `& {}` trick widens string but preserves IDE autocompletion.
  */
@@ -356,16 +374,17 @@ export interface StyleTokens {
       ThemeKeyRegistry['fontWeight'],
       NonNullable<FontWeightValue>
     >;
-    colors: KnownKeys<ThemeKeyRegistry['color'], string>;
+    colors: KnownKeys<ColorKeyWithOpacity, string>;
     shadows: KnownKeys<ThemeKeyRegistry['shadow'], string>;
     opacity: KnownKeys<ThemeKeyRegistry['opacity'], number>;
   };
 
   /**
    * Resolved color palette for the current color scheme (from CSS vars + theme).
-   * Known color keys provide autocomplete.
+   * Known color keys provide autocomplete, including `/opacity` suffixes
+   * (e.g. `t.colors['primary/50']`, `t.colors['muted/10']`).
    */
-  colors: KnownKeys<ThemeKeyRegistry['color'], string>;
+  colors: KnownKeys<ColorKeyWithOpacity, string>;
 
   /** Whether dark mode is currently active */
   dark: boolean;
