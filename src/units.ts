@@ -116,6 +116,19 @@ export function fraction(numerator: number, denominator: number): string {
 }
 
 /**
+ * Returns true for objects that are Reanimated animated style handles.
+ * Such handles must pass through unmodified so `Animated.*` components
+ * detect them via their `viewDescriptors` marker.
+ */
+function isAnimatedStyle(style: unknown): boolean {
+  return (
+    style != null &&
+    typeof style === 'object' &&
+    (style as { viewDescriptors?: unknown }).viewDescriptors !== undefined
+  );
+}
+
+/**
  * Walks a style object (or nested style) and converts any string values
  * containing viewport units (e.g. '50vw', '100vh') to pixel numbers.
  *
@@ -124,29 +137,37 @@ export function fraction(numerator: number, denominator: number): string {
  * <View style={{ width: '50vw', height: '100vh' }} />
  * <View style={(t) => ({ width: '50vw', minHeight: '80vh' })} />
  * ```
+ *
+ * Reanimated animated style handles (objects with `viewDescriptors`) are
+ * returned as-is so `Animated.*` components keep recognising them.
  */
 export function resolveViewportUnits<T>(style: T): T {
   if (!style || typeof style !== 'object') return style;
+  if (isAnimatedStyle(style)) return style;
 
-  // Don't mutate the original — create a shallow copy
-  const resolved = { ...style } as Record<string, unknown>;
-  let changed = false;
+  // First pass: scan for any string values that need conversion.
+  // We avoid spreading the input until we know a copy is needed —
+  // some inputs (Reanimated handles, frozen objects, class instances)
+  // don't survive a `{ ...obj }` spread cleanly.
+  let resolved: Record<string, unknown> | null = null;
 
-  for (const key in resolved) {
-    if (!Object.prototype.hasOwnProperty.call(resolved, key)) continue;
+  for (const key in style as Record<string, unknown>) {
+    if (!Object.prototype.hasOwnProperty.call(style, key)) continue;
 
-    const val = resolved[key];
+    const val = (style as Record<string, unknown>)[key];
 
     if (typeof val === 'string') {
       const parsed = parseViewportValue(val);
       if (parsed !== val) {
+        if (resolved === null) {
+          resolved = { ...(style as Record<string, unknown>) };
+        }
         resolved[key] = parsed;
-        changed = true;
       }
     }
   }
 
-  return (changed ? resolved : style) as T;
+  return (resolved ?? style) as T;
 }
 
 // =============================================================================
