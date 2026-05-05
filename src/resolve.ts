@@ -80,6 +80,19 @@ function getNestedValue(obj: unknown, path: string): unknown {
 // =============================================================================
 
 /**
+ * Returns true for Reanimated animated style handles. These must pass
+ * through `__resolveStyle` untouched so `Animated.*` components keep
+ * detecting them via their `viewDescriptors` marker.
+ */
+function isAnimatedStyleHandle(value: unknown): boolean {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    (value as { viewDescriptors?: unknown }).viewDescriptors !== undefined
+  );
+}
+
+/**
  * Resolves a style value at render time.
  * - If it's a function, calls it with the current token store.
  * - If it's an array, maps over it resolving any functions.
@@ -91,8 +104,15 @@ function getNestedValue(obj: unknown, path: string): unknown {
  *
  * After resolution, any string values containing viewport units
  * (e.g. '50vw', '100vh') are automatically converted to pixel numbers.
+ *
+ * Reanimated animated style handles (objects with `viewDescriptors`) are
+ * passed through unchanged so `Animated.*` detection keeps working.
  */
 export function __resolveStyle(value: unknown, depsRef?: DepsRef): unknown {
+  // Reanimated animated style handles must reach Animated.View intact —
+  // any iteration / spread / re-creation breaks the worklet binding.
+  if (isAnimatedStyleHandle(value)) return value;
+
   if (typeof value === 'function') {
     const store = getTokenStore();
     let resolved: unknown;
@@ -113,6 +133,7 @@ export function __resolveStyle(value: unknown, depsRef?: DepsRef): unknown {
 
   if (Array.isArray(value)) {
     return value.map((s) => {
+      if (isAnimatedStyleHandle(s)) return s;
       if (typeof s === 'function') {
         const store = getTokenStore();
         let resolved: unknown;
